@@ -44,6 +44,8 @@ Data derived from the City of Indianapolis / Marion County service is provided b
 
 Acreage is calculated from each parcel's mapped boundary. Assessed values for agricultural, wooded and other farm-use land are set by Indiana's farmland formula (2025 base rate $2,120/acre) and are not market values; the app flags these parcels.
 
+About 5% of parcels are reported at $0, mostly exempt property (class 6xx), HOA / subdivision common areas and state-assessed utility property (class 8xx). The app labels these instead of showing a bare $0, and leaves them out of Min / Max Assessed Value searches.
+
 Parcels are matched to assessor records by their 18-digit state parcel number. In a sample of 24,000 parcels across 12 counties, 99.7% matched; the rest were mostly split, combined or renumbered since the assessment. Parcels with no state parcel number in the IndianaMap layer can't be matched.
 
 ### Updating the assessment data

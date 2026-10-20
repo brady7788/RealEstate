@@ -1418,7 +1418,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
             setSourceStatus('ok', 'Live');
             const notes = [];
             if (!searchState.areaServerSide && (f.minAcres != null || f.maxAcres != null)) notes.push('Acreage filtered in browser');
-            if (avActive) notes.push(gatewayDown ? "Couldn't load assessor data" : `Assessed value checked on ${searchState.offset.toLocaleString()} parcels`);
+            if (avActive) notes.push(gatewayDown ? "Couldn't load assessor data" : `Assessed value checked on ${searchState.offset.toLocaleString()} parcels; $0 (exempt / unassessed) left out`);
             document.getElementById('query-note').textContent = notes.join(' · ');
             renderParcelList();
             drawResults();
@@ -1496,7 +1496,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
                 owner: (a.FULLOWNERNAME || '').replace(/(\s*,)+\s*$/, '').replace(/,(\s*,)+/g, ',').trim() || null,
                 ownerAddress: [a.OWNERADDRESS, a.OWNERADDRESS2, [a.OWNERCITY, ownerState, a.OWNERZIP].filter(Boolean).join(' '), a.OWNERFOREIGNCOUNTRY]
                     .map(s => (s || '').trim()).filter(Boolean).join(', ') || null,
-                ownerState, assessorClass: [a.PROPERTY_CLASS, a.PROPERTY_SUB_CLASS_DESCRIPTION].filter(Boolean).join(' · ') || null,
+                ownerState, cls: /^\d{3}$/.test(String(a.PROPERTY_CLASS || '').trim()) ? String(a.PROPERTY_CLASS).trim() : null,
+                assessorClass: [a.PROPERTY_CLASS, a.PROPERTY_SUB_CLASS_DESCRIPTION].filter(Boolean).join(' · ') || null,
                 neighborhood: a.NEIGHBORHOOD || null, parcelC: a.PARCEL_C || null, stateNumber: a.STATEPARCELNUMBER || null, match, source: 'indy'
             };
         }
@@ -1563,7 +1564,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
                 totalAV: g.totalAV, landAV: g.landAV, impAV: g.impAV, owner: g.owner,
                 ownerAddress: [g.ownerStreet, [g.ownerCity, ownerState, g.ownerZip].filter(Boolean).join(' '), g.ownerCountry]
                     .filter(Boolean).join(', ') || null,
-                ownerState, assessorClass: g.cls ? `${g.cls} · ${classLabel(g.cls)}` : null,
+                ownerState, cls: g.cls, assessorClass: g.cls ? `${g.cls} · ${classLabel(g.cls)}` : null,
                 deededAcres: g.acres, transferDate: g.transferDate,
                 year: county.assessmentYear ? `${county.assessmentYear} pay ${county.payYear}` : null,
                 match: 'state parcel number', source: 'gateway'
@@ -1654,9 +1655,22 @@ svg.leaflet-image-layer.leaflet-interactive path {
         function avFilterActive(f) {
             return f.minAV != null || f.maxAV != null;
         }
+        // Counties report exempt, HOA common-area and state-assessed utility parcels at $0; say why instead of showing a bare $0
+        const HOA_RE = /\b(HOA|HOMEOWNERS?|HOME OWNERS|OWNERS ASS(OCIATION|N)|COMMUNITY ASS(OCIATION|N)|CONDOMINIUM ASS(OCIATION|N))\b/i;
+        function zeroAVReason(p) {
+            const a = p.assess;
+            if (!a || a.totalAV !== 0) return null;
+            const cls = String(a.cls || p.classCode || '');
+            if (cls[0] === '6') return { label: 'Exempt', text: 'Exempt property (such as government, school, church, park, cemetery or nonprofit land). Counties often carry exempt parcels at $0.' };
+            if (cls[0] === '8') return { label: 'State-assessed', text: 'Utility property is assessed centrally by the state, not the county, so the county file shows $0.' };
+            if (p.commonArea || (a.owner && HOA_RE.test(a.owner))) return { label: 'Not assessed', text: 'Looks like an HOA or subdivision common area. These usually carry no value of their own because it is counted in the surrounding homes.' };
+            return { label: 'Not assessed', text: 'The county reported no assessed value for this parcel.' };
+        }
+
+        // $0 parcels (exempt, common areas, state-assessed) are left out of assessed-value searches
         function passesAV(p, f) {
             const v = p.assess && p.assess.totalAV;
-            if (v == null) return false;
+            if (!v) return false;
             if (f.minAV != null && v < f.minAV) return false;
             if (f.maxAV != null && v > f.maxAV) return false;
             return true;
@@ -1684,6 +1698,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
                     : `This parcel has no 18-digit state parcel number in the IndianaMap layer, so it can't be matched to the ${escapeHtml(countyLabel)} assessor file.`}</p>`;
             } else {
                 const a = p.assess;
+                const zero = zeroAVReason(p);
                 const row = (k, v, cls = 'text-slate-200') => `<div class="flex justify-between gap-3"><span class="text-slate-400 shrink-0">${k}</span><span class="font-semibold ${cls} text-right">${v}</span></div>`;
                 const flags = [];
                 if (a.ownerState && a.ownerState !== 'IN') flags.push(`Out-of-state owner (${escapeHtml(a.ownerState)})`);
@@ -1691,11 +1706,11 @@ svg.leaflet-image-layer.leaflet-interactive path {
                 if (a.owner && ENTITY_RE.test(a.owner)) flags.push('Entity / institutional owner');
                 el.innerHTML = heading(`Matched by ${a.match}`, 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30') + `
                     <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2 text-[11px]">
-                        ${row('Total Assessed Value', fmtMoney(a.totalAV), 'text-emerald-400')}
+                        ${zero ? row('Total Assessed Value', `$0 · ${zero.label}`, 'text-slate-300') : row('Total Assessed Value', fmtMoney(a.totalAV), 'text-emerald-400')}
                         ${row('Land', fmtMoney(a.landAV))}
                         ${row('Improvements', fmtMoney(a.impAV))}
                         ${a.landAV != null && a.totalAV ? row('Improvement share', ((a.impAV || 0) / a.totalAV * 100).toFixed(0) + '%') : ''}
-                        ${a.totalAV != null && p.acres ? row('Assessed value per acre', fmtMoney(a.totalAV / p.acres)) : ''}
+                        ${a.totalAV && p.acres ? row('Assessed value per acre', fmtMoney(a.totalAV / p.acres)) : ''}
                         <div class="pt-2 border-t border-slate-800 space-y-2">
                             ${row('Owner', escapeHtml(a.owner || '—'))}
                             ${row('Mailing Address', escapeHtml(a.ownerAddress || '—'))}
@@ -1705,7 +1720,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
                             ${a.neighborhood ? row('Assessor Neighborhood', escapeHtml(a.neighborhood)) : ''}
                         </div>
                     </div>
-                    ${a.landAV != null && p.acres >= 1 && a.landAV / p.acres < AG_RATE_FLAG ? `<div class="bg-indigo-950/40 border border-indigo-500/30 p-2.5 rounded-lg text-[11px] text-indigo-200">
+                    ${zero ? `<div class="bg-slate-800/60 border border-slate-700 p-2.5 rounded-lg text-[11px] text-slate-300">${escapeHtml(zero.text)} A $0 assessment isn't a market value.</div>` : ''}
+                    ${a.landAV > 0 && p.acres >= 1 && a.landAV / p.acres < AG_RATE_FLAG ? `<div class="bg-indigo-950/40 border border-indigo-500/30 p-2.5 rounded-lg text-[11px] text-indigo-200">
                         Land is assessed at about <strong class="text-white">${fmtMoney(a.landAV / p.acres)}/acre</strong>, in line with Indiana's farmland rate (base ${fmtMoney(AG_BASE_RATE)}/acre for 2025, adjusted for soil). Farmland, woods and other agricultural land is assessed on its use value, not on what it would sell for, so this is not a market value.
                     </div>` : ''}
                     ${flags.length ? `<div class="flex flex-wrap gap-1.5">${flags.map(t => `<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/30">${t}</span>`).join('')}</div>
@@ -1747,7 +1763,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
                         </div>
                         ${p.assess && p.assess.totalAV != null ? `<div>
                             <span class="text-slate-500 block text-[9px]">Assessed</span>
-                            <span class="font-semibold text-emerald-400">${fmtMoneyShort(p.assess.totalAV)}</span>
+                            ${zeroAVReason(p) ? `<span class="font-semibold text-slate-400" title="${escapeHtml(zeroAVReason(p).text)}">$0 · ${zeroAVReason(p).label}</span>`
+                                : `<span class="font-semibold text-emerald-400">${fmtMoneyShort(p.assess.totalAV)}</span>`}
                         </div>` : `<div>
                             <span class="text-slate-500 block text-[9px]">County</span>
                             <span class="font-semibold text-slate-200">${escapeHtml(p.county || '—')}</span>
@@ -1971,7 +1988,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
                 if (/assess|\bav\b|owner|own|mailing|taxes|worth/.test(q) && !/sale|sold|sell|bought|purchase|zoning|zoned/.test(q) && p.assess) {
                     const a = p.assess;
                     const src = a.source === 'indy' ? 'City of Indianapolis / Marion County open data' : `the ${a.year || ''} Real Property file via Indiana Gateway`;
-                    reply = `${escapeHtml(p.county || '')} County assessor record: total assessed value ${b(fmtMoney(a.totalAV))} (land ${b(fmtMoney(a.landAV))}, improvements ${b(fmtMoney(a.impAV))}). Owner: ${b(a.owner || '—')}, mailing address ${b(a.ownerAddress || '—')}${a.transferDate ? `, owner since ${b(a.transferDate)}` : ''}. Source: ${escapeHtml(src)}, matched by ${a.match}.`;
+                    const zero = zeroAVReason(p);
+                    reply = `${escapeHtml(p.county || '')} County assessor record: total assessed value ${b(fmtMoney(a.totalAV))}${zero ? ` (${escapeHtml(zero.text)})` : ''} (land ${b(fmtMoney(a.landAV))}, improvements ${b(fmtMoney(a.impAV))}). Owner: ${b(a.owner || '—')}, mailing address ${b(a.ownerAddress || '—')}${a.transferDate ? `, owner since ${b(a.transferDate)}` : ''}. Source: ${escapeHtml(src)}, matched by ${a.match}.`;
                 } else if (/assess|\bav\b|owner|own|mailing|worth/.test(q) && !/sale|sold|sell|bought|purchase|zoning|zoned/.test(q)) {
                     reply = p.assess === null ? 'No assessor record matched this parcel, so I don\'t have its assessed value or owner.'
                         : 'The assessor data is still loading or couldn\'t be reached. Check the Parcel Record tab in a moment.';
