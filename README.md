@@ -30,9 +30,9 @@ then open http://localhost:5173.
 
 ### Map tiles
 
-By default the map uses the free CARTO dark basemap. If its tiles don't load (some networks, browsers and extensions block a tile host), the map switches to Esri's dark gray basemap, then Esri's street map; Satellite falls back from Esri imagery to USGS imagery. Indiana's county outlines come from IndianaMap, the same server as the parcels, so the state shows even when no tile host is reachable.
+The map uses Esri's free dark gray basemap with its street and place-name layer, and Satellite uses Esri imagery with road and place-name labels. Neither needs a key. If those tiles don't load (some networks, browsers and extensions block a tile host), Map falls back to OpenStreetMap and Satellite to USGS imagery with labels. Indiana's county outlines come from IndianaMap, the same server as the parcels, so the state shows even when no tile host is reachable.
 
-To use Mapbox instead, set `MAPBOX_TOKEN` near the top of the main script in `index.html` to a Mapbox public token. Public tokens are visible to anyone who loads the page, so restrict the token to your site's URLs in the Mapbox dashboard before publishing it.
+CARTO's basemaps, which LandLens used before, now need a free API key: without one, CARTO serves tiles stamped "API KEY REQUIRED". To use CARTO or Mapbox instead, set `CARTO_KEY` or `MAPBOX_TOKEN` near the top of the main script in `index.html`. These keys are visible to anyone who loads the page, so restrict them to your site's URLs before publishing.
 
 ## Data sources
 

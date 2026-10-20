@@ -1047,10 +1047,12 @@ svg.leaflet-image-layer.leaflet-interactive path {
             'county_fips', 'county_id', 'tax_county', 'tax_township', 'tax_city', 'tax_school', 'tax_library', 'cnty_tax_dist_cd',
             'latitude', 'longitude', 'source_originator', 'loaddate'].join(',');
 
-        // Mapbox public token. Public (pk.*) tokens are always visible in client code, so restrict
-        // this token to your site's URLs in the Mapbox dashboard (Account → Tokens → URL restrictions).
-        // Leave blank to fall back to the free CARTO dark basemap.
-        const MAPBOX_TOKEN = ''; // paste a URL-restricted Mapbox public token here, or leave blank for the free CARTO basemap
+        // Optional basemap keys. Both are public, visible to anyone who loads the page, so restrict them to your
+        // site's URLs (Mapbox: Account → Tokens → URL restrictions). Leave blank to use the keyless Esri basemaps.
+        const MAPBOX_TOKEN = ''; // URL-restricted Mapbox public token (pk.*)
+        // Since late summer 2026 CARTO serves its basemaps without a key only as tiles stamped "API KEY REQUIRED",
+        // with an HTTP 200 the fallback can't detect, so CARTO is used only when a (free) key is set here.
+        const CARTO_KEY = '';
 
         // Indiana's 92 counties, alphabetical. State county number = index + 1; FIPS = 18 + (2 × number − 1).
         const COUNTY_NAMES = ['Adams', 'Allen', 'Bartholomew', 'Benton', 'Blackford', 'Boone', 'Brown', 'Carroll', 'Cass', 'Clark',
@@ -1149,7 +1151,10 @@ svg.leaflet-image-layer.leaflet-interactive path {
         // ---- Map ----
         function initMap() {
             map = L.map('map', { zoomControl: false, preferCanvas: true }).setView([39.85, -86.25], 8);
-            activeBase = basemapLayer('dark', 0).addTo(map);
+            const labelPane = map.createPane('labels'); // street and place names: above tiles and county lines, below parcels
+            labelPane.style.zIndex = 360;
+            labelPane.style.pointerEvents = 'none';
+            showBasemap('dark', 0);
 
             L.control.zoom({ position: 'topright' }).addTo(map);
             loadCountyOutlines();
@@ -1158,41 +1163,51 @@ svg.leaflet-image-layer.leaflet-interactive path {
             map.on('moveend', () => { if (document.getElementById('filter-map-area').checked) runSearch(true, { keepView: true }); });
         }
 
-        // Tile sources for each basemap, in order of preference. Some networks, browsers and extensions block
-        // a tile host; if a source's tiles fail before any load, the map moves on to the next one.
+        // Tile sources for each basemap, in order of preference, each with optional label overlays (streets, places).
+        // Some networks, browsers and extensions block a tile host; if a source's tiles fail before any load,
+        // the map moves on to the next one.
         const ESRI_TILES = name => `https://server.arcgisonline.com/ArcGIS/rest/services/${name}/MapServer/tile/{z}/{y}/{x}`;
         const OSM_ATTR = '© <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+        const ESRI_ATTR = 'Tiles © Esri, HERE, Garmin, USGS, © OpenStreetMap contributors';
         const BASEMAPS = {
             dark: [
-                MAPBOX_TOKEN && [`https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`,
-                    { attribution: `© <a href="https://www.mapbox.com/about/maps/">Mapbox</a> ${OSM_ATTR}`, tileSize: 512, zoomOffset: -1, maxZoom: 20 }],
-                ['https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-                    { attribution: `${OSM_ATTR} © <a href="https://carto.com/attributions">CARTO</a>`, subdomains: 'abcd', maxZoom: 20 }],
-                [ESRI_TILES('Canvas/World_Dark_Gray_Base'), { attribution: 'Tiles © Esri, HERE, Garmin, © OpenStreetMap contributors', maxNativeZoom: 16, maxZoom: 20 }],
-                [ESRI_TILES('World_Street_Map'), { attribution: 'Tiles © Esri, HERE, Garmin, USGS, © OpenStreetMap contributors', maxNativeZoom: 19, maxZoom: 20 }]
+                MAPBOX_TOKEN && { url: `https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`,
+                    opts: { attribution: `© <a href="https://www.mapbox.com/about/maps/">Mapbox</a> ${OSM_ATTR}`, tileSize: 512, zoomOffset: -1, maxZoom: 20 } },
+                CARTO_KEY && { url: `https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`,
+                    opts: { attribution: `${OSM_ATTR} © <a href="https://carto.com/attributions">CARTO</a>`, subdomains: 'abcd', maxZoom: 20 } },
+                { url: ESRI_TILES('Canvas/World_Dark_Gray_Base'), opts: { attribution: ESRI_ATTR, maxNativeZoom: 16, maxZoom: 20 },
+                    labels: [[ESRI_TILES('Canvas/World_Dark_Gray_Reference'), { maxNativeZoom: 16 }]] },
+                { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', opts: { attribution: OSM_ATTR, maxNativeZoom: 19, maxZoom: 20 } }
             ].filter(Boolean),
             sat: [
-                [ESRI_TILES('World_Imagery'), { attribution: 'Imagery © Esri, Maxar, Earthstar Geographics', maxZoom: 20 }],
-                ['https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}',
-                    { attribution: 'Imagery: <a href="https://www.usgs.gov/">USGS</a> The National Map', maxNativeZoom: 16, maxZoom: 20 }]
+                { url: ESRI_TILES('World_Imagery'), opts: { attribution: 'Imagery © Esri, Maxar, Earthstar Geographics; labels © Esri, HERE, Garmin', maxZoom: 20 },
+                    labels: [[ESRI_TILES('Reference/World_Transportation'), { maxNativeZoom: 19 }],
+                        [ESRI_TILES('Reference/World_Boundaries_and_Places'), { maxNativeZoom: 19 }]] },
+                // USGS imagery with roads and place names built in
+                { url: 'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryTopo/MapServer/tile/{z}/{y}/{x}',
+                    opts: { attribution: 'Imagery: <a href="https://www.usgs.gov/">USGS</a> The National Map', maxNativeZoom: 16, maxZoom: 20 } }
             ]
         };
         const TILE_FAILURES_BEFORE_FALLBACK = 4;
         let basemapChoice = 'dark';
 
-        function basemapLayer(which, i) {
-            const [url, opts] = BASEMAPS[which][i];
+        function showBasemap(which, i) {
+            if (activeBase) {
+                map.removeLayer(activeBase);
+                activeBase.labels.forEach(l => map.removeLayer(l));
+            }
+            const { url, opts, labels = [] } = BASEMAPS[which][i];
             const layer = L.tileLayer(url, opts);
+            layer.labels = labels.map(([u, o]) => L.tileLayer(u, { pane: 'labels', maxZoom: opts.maxZoom, ...o }));
             let loaded = false, failed = 0;
             layer.on('tileload', () => { loaded = true; });
             layer.on('tileerror', () => {
                 if (loaded || ++failed !== TILE_FAILURES_BEFORE_FALLBACK || i + 1 >= BASEMAPS[which].length) return;
-                if (activeBase !== layer || basemapChoice !== which) return;
-                map.removeLayer(layer);
-                activeBase = basemapLayer(which, i + 1).addTo(map);
-                activeBase.bringToBack();
+                if (activeBase === layer && basemapChoice === which) showBasemap(which, i + 1);
             });
-            return layer;
+            activeBase = layer.addTo(map);
+            layer.bringToBack();
+            layer.labels.forEach(l => l.addTo(map));
         }
 
         // County outlines from IndianaMap, the same server as the parcels, so Indiana shows even if every tile host is blocked
@@ -1217,9 +1232,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
         function setBasemap(which) {
             basemapChoice = which;
-            map.removeLayer(activeBase);
-            activeBase = basemapLayer(which, 0).addTo(map);
-            activeBase.bringToBack();
+            showBasemap(which, 0);
             document.getElementById('basemap-dark').className = which === 'dark' ? 'px-3 py-1.5 bg-emerald-600 text-white' : 'px-3 py-1.5 text-slate-300 hover:text-white';
             document.getElementById('basemap-sat').className = which === 'sat' ? 'px-3 py-1.5 bg-emerald-600 text-white' : 'px-3 py-1.5 text-slate-300 hover:text-white';
         }
