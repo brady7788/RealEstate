@@ -10,7 +10,10 @@ Statewide off-market land search and development underwriting for Indiana. LandL
 - **Interactive map** with dark and satellite basemaps; click anywhere to identify a parcel.
 - **Parcel detail panel:**
   - **Parcel Record:** parcel IDs, acreage calculated from the boundary, property class, address, township, school and tax districts, plus assessed value, owner, mailing address, transfer date, assessor class, deeded acreage and ownership indicators.
-  - **Development Engine:** assumption-based site yield and an editable residual land value model.
+  - **Development Engine:** choose **Apartment Development** or **Neighborhood Development**. LandLens finds comparable projects near the parcel and shows the density they were built at, a comp-based unit range for the site, and an editable residual land value model:
+    - *Apartments:* parcels within 3 miles (widening to 6, then 10) in DLGF apartment classes 401–403, from half to twice the site's acreage. Units are counted from IndianaMap's statewide address points where a county maps one per unit, otherwise estimated from building footprints at a footprint-per-unit ratio calibrated on the nearby comps.
+    - *Neighborhoods:* tracts within 3 miles (widening to 5) that were a single parcel of similar acreage in IndianaMap's 2013 parcel layer and now hold at least 8 house lots. Density is homes plus platted lots per gross tract acre.
+    - A range is shown only with at least 3 comps. Comps are outlined on the map; click one to zoom to it.
   - **Analyst Chat:** a built-in assistant that answers from the parcel's record and your model inputs. It doesn't call any AI service and needs no API key.
 - **Watchlist** saved in your browser.
 
@@ -40,6 +43,7 @@ CARTO's basemaps, which LandLens used before, now need a free API key: without o
 | --- | --- | --- |
 | Parcel boundaries, IDs, addresses, property class, tax districts | [IndianaMap / IGIO, Parcel Boundaries of Indiana 2025](https://gisdata.in.gov/server/rest/services/Hosted/Parcel_Boundaries_of_Indiana_2025/FeatureServer/0) | Statewide, updated annually |
 | Assessed values, owner, mailing address, transfer date, deeded acreage (all counties) | [Indiana Gateway for Government Units, Property Files: Real Property](https://gateway.ifionline.org/public/download.aspx) | Files counties submit to the DLGF, 2025 pay 2026; layout per 50 IAC 26. Built into `data/assessments/` |
+| Development comps: 2013 parcels, address points, building footprints | [IndianaMap / IGIO: Parcel Boundaries of Indiana 2013](https://gisdata.in.gov/server/rest/services/Hosted/Parcels_Boundaries_of_Indiana_2013/FeatureServer/7), [Address Points of Indiana Current](https://gisdata.in.gov/server/rest/services/Hosted/Address_Points_of_Indiana_Current/FeatureServer/0), [Indiana Building Footprints 2016–2020](https://gisdata.in.gov/server/rest/services/Hosted/Building_Footprints/FeatureServer/0) | Queried live; footprints come from 2016–2020 lidar, so newer buildings are missing |
 | Marion County assessed values, owner, mailing address | [City of Indianapolis / Marion County, Parcels w/ Owner Information & Assessed Values](https://data.indy.gov/datasets/IndyGIS::parcels-w-owner-information-assessed-values) | Updated nightly from IndyGIS and the Marion County Assessor |
 
 Data derived from the City of Indianapolis / Marion County service is provided by the City of Indianapolis / Marion County, IN, as its license requires.

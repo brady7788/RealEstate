@@ -923,20 +923,38 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
                 <!-- TAB 2: DEVELOPMENT ENGINE -->
                 <div id="tab-content-ai" class="space-y-5 hidden">
+                    <!-- Development type -->
+                    <div class="grid grid-cols-2 gap-1 p-1 bg-slate-950 rounded-xl border border-slate-800 text-[11px] font-semibold">
+                        <button id="devmode-apartment" onclick="setDevMode('apartment')" class="py-2 rounded-lg flex items-center justify-center gap-1.5">
+                            <i data-lucide="building-2" class="w-3.5 h-3.5"></i> Apartment Development
+                        </button>
+                        <button id="devmode-neighborhood" onclick="setDevMode('neighborhood')" class="py-2 rounded-lg flex items-center justify-center gap-1.5">
+                            <i data-lucide="home" class="w-3.5 h-3.5"></i> Neighborhood Development
+                        </button>
+                    </div>
+
                     <div class="bg-gradient-to-br from-emerald-950/60 to-slate-950 p-4 rounded-xl border border-emerald-500/30 space-y-3">
-                        <div class="flex items-center justify-between">
+                        <div class="flex items-start justify-between gap-3">
                             <div>
-                                <span class="text-[10px] uppercase font-semibold text-emerald-400">Development Capacity (Assumption-Based)</span>
+                                <span id="cap-label" class="text-[10px] uppercase font-semibold text-emerald-400">Development Capacity</span>
                                 <div id="ai-capacity" class="text-xl font-bold text-white tracking-tight">–</div>
+                                <div id="cap-sub" class="text-[10px] text-slate-400"></div>
                             </div>
-                            <div class="text-right">
+                            <div class="text-right shrink-0">
                                 <span class="text-[10px] uppercase font-semibold text-slate-400">Comp Confidence</span>
-                                <div class="text-sm font-bold text-slate-400 flex items-center gap-1 justify-end">
-                                    <i data-lucide="circle-slash" class="w-4 h-4"></i> None (0 comps)
-                                </div>
+                                <div id="comp-confidence" class="text-sm font-bold text-slate-400 flex items-center gap-1 justify-end">–</div>
                             </div>
                         </div>
-                        <p class="pt-2 border-t border-emerald-500/20 text-[11px] text-slate-300">No comparable-projects database is loaded yet. Per the methodology, a comp-based range is only given with at least 3 good comps, so this figure comes purely from the density assumption below.</p>
+                        <div id="comp-summary" class="pt-2 border-t border-emerald-500/20 text-[11px] text-slate-300"></div>
+                    </div>
+
+                    <!-- Nearby comparables -->
+                    <div class="space-y-3">
+                        <h3 class="font-bold text-slate-200 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                            <i data-lucide="map-pinned" class="w-3.5 h-3.5 text-indigo-400"></i> <span id="comp-heading">Nearby Comparables</span>
+                        </h3>
+                        <div id="comp-list" class="space-y-2"></div>
+                        <p id="comp-method" class="text-[10px] text-slate-500"></p>
                     </div>
 
                     <!-- Site Yield Assumptions -->
@@ -955,7 +973,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
                                     <input type="number" id="calc-deduct" value="20" min="0" max="100" oninput="calculateResidual()" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-white font-mono">
                                 </div>
                                 <div>
-                                    <label class="text-slate-400 block mb-1">Density (units/acre) <span class="text-amber-500 text-[9px] uppercase font-bold">Assumption</span></label>
+                                    <label class="text-slate-400 block mb-1"><span id="calc-density-label">Density (units/acre)</span> <span class="text-amber-500 text-[9px] uppercase font-bold">Assumption</span></label>
                                     <input type="number" id="calc-density" value="12" min="0" step="0.5" oninput="calculateResidual()" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-white font-mono">
                                 </div>
                             </div>
@@ -975,11 +993,11 @@ svg.leaflet-image-layer.leaflet-interactive path {
                         <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-3">
                             <div class="grid grid-cols-2 gap-2 text-[11px]">
                                 <div>
-                                    <label class="text-slate-400 block mb-1">Expected Sale / Unit ($)</label>
+                                    <label id="calc-rev-label" class="text-slate-400 block mb-1">Expected Sale / Unit ($)</label>
                                     <input type="number" id="calc-rev" value="220000" oninput="calculateResidual()" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-white font-mono">
                                 </div>
                                 <div>
-                                    <label class="text-slate-400 block mb-1">Construction Cost / Unit ($)</label>
+                                    <label id="calc-cost-label" class="text-slate-400 block mb-1">Construction Cost / Unit ($)</label>
                                     <input type="number" id="calc-cost" value="165000" oninput="calculateResidual()" class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-white font-mono">
                                 </div>
                             </div>
@@ -1144,6 +1162,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
             lucide.createIcons();
             initMap();
+            Object.entries(DEV_MODES[devMode].defaults).forEach(([id, v]) => { document.getElementById(id).value = v; });
+            applyDevModeLabels();
             updateWatchlistCount();
             runSearch(true);
         });
@@ -1909,7 +1929,10 @@ svg.leaflet-image-layer.leaflet-interactive path {
                 </div>`;
 
             updateWatchlistButtonState();
+            lastComps = null;
+            if (compLayer) compLayer.clearLayers();
             calculateResidual();
+            if (!document.getElementById('tab-content-ai').classList.contains('hidden')) loadComps();
             renderParcelList();
             drawResults();
             lucide.createIcons();
@@ -1917,6 +1940,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
         function closeDetailPanel() {
             document.getElementById('detail-panel').classList.add('translate-x-full');
+            if (compLayer) compLayer.clearLayers();
             selectedParcel = null;
             renderParcelList();
             drawResults();
@@ -1931,6 +1955,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
             document.getElementById(`tab-content-${tab}`).classList.remove('hidden');
             document.getElementById(`tab-btn-${tab}`).classList.remove('border-transparent', 'text-slate-400');
             document.getElementById(`tab-btn-${tab}`).classList.add('border-emerald-500', 'text-emerald-400');
+            if (tab === 'ai') loadComps();
             lucide.createIcons();
         }
 
@@ -1950,9 +1975,341 @@ svg.leaflet-image-layer.leaflet-interactive path {
             const m = computeModel();
             document.getElementById('yield-gross').textContent = m ? `${fmtAcres(m.gross)} acres` : '-';
             document.getElementById('yield-net').textContent = m ? `${fmtAcres(m.net)} acres` : '-';
-            document.getElementById('ai-capacity').textContent = m ? `${m.units.toLocaleString()} Units` : '–';
             document.getElementById('calc-result').textContent = m ? `$${Math.round(m.rlv).toLocaleString()}` : '-';
+            renderCapacity();
             return m;
+        }
+
+        // ---- Development type & nearby comparables ----
+        // Apartment: parcels now in apartment classes (401–403) near the site with similar acreage; units from
+        // address points (one per unit in many counties) or, failing that, building footprints.
+        // Neighborhood: tracts near the site that were one parcel of similar acreage in 2013 and now hold house lots.
+        const DEV_MODES = {
+            apartment: {
+                unit: 'unit', units: 'units', densityLabel: 'Density (units/acre)', revLabel: 'Stabilized Value / Unit ($)', costLabel: 'Development Cost / Unit ($)',
+                defaults: { 'calc-deduct': 20, 'calc-density': 18, 'calc-rev': 210000, 'calc-cost': 175000, 'calc-profit': 15, 'calc-site': 750000 }
+            },
+            neighborhood: {
+                unit: 'home', units: 'homes', densityLabel: 'Density (homes/acre)', revLabel: 'Expected Sale / Home ($)', costLabel: 'Build + Lot Dev. Cost / Home ($)',
+                defaults: { 'calc-deduct': 25, 'calc-density': 3, 'calc-rev': 375000, 'calc-cost': 295000, 'calc-profit': 18, 'calc-site': 450000 }
+            }
+        };
+        const PARCELS_2013 = 'https://gisdata.in.gov/server/rest/services/Hosted/Parcels_Boundaries_of_Indiana_2013/FeatureServer/7';
+        const ADDRESS_POINTS = 'https://gisdata.in.gov/server/rest/services/Hosted/Address_Points_of_Indiana_Current/FeatureServer/0';
+        const FOOTPRINTS = 'https://gisdata.in.gov/server/rest/services/Hosted/Building_Footprints/FeatureServer/0';
+        const APT_BANDS = { '401': [4, 19], '402': [20, 39], '403': [40, null] };
+        const COMP_RADII = { apartment: [3, 6, 10], neighborhood: [3, 5] }; // miles; widen until at least MIN_COMPS
+        const MIN_COMPS = 3;
+        const COMP_ACRE_RANGE = [0.5, 2];        // comps from half to twice the site's acreage
+        const FOOTPRINT_SQFT_PER_UNIT = 525;     // fallback; recalibrated from comps that have unit-level address points
+        const MIN_NEIGHBORHOOD_LOTS = 8;
+        const MIN_SITE_ACRES = { apartment: 0.5, neighborhood: 2 };
+        const LOT_COMMON_RE = /COMMON|POND|LAKE|DETENTION|OPEN SPACE|LANDSCAPE|AMENITY|CLUBHOUSE/i;
+        let devMode = (() => { try { return localStorage.getItem('landlens-devmode') || 'apartment'; } catch { return 'apartment'; } })();
+        if (!DEV_MODES[devMode]) devMode = 'apartment';
+        const compCache = new Map(); // `${objectid}|${mode}` -> Promise<result>
+        let compLayer = null;
+
+        function setDevMode(mode) {
+            devMode = mode;
+            try { localStorage.setItem('landlens-devmode', mode); } catch { /* storage unavailable */ }
+            const cfg = DEV_MODES[mode];
+            Object.entries(cfg.defaults).forEach(([id, v]) => { document.getElementById(id).value = v; });
+            applyDevModeLabels();
+            calculateResidual();
+            loadComps();
+        }
+
+        function applyDevModeLabels() {
+            const cfg = DEV_MODES[devMode];
+            ['apartment', 'neighborhood'].forEach(m => {
+                document.getElementById(`devmode-${m}`).className = `py-2 rounded-lg flex items-center justify-center gap-1.5 ${m === devMode ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-slate-200'}`;
+            });
+            document.getElementById('calc-density-label').textContent = cfg.densityLabel;
+            document.getElementById('calc-rev-label').textContent = cfg.revLabel;
+            document.getElementById('calc-cost-label').textContent = cfg.costLabel;
+            document.getElementById('comp-heading').textContent = devMode === 'apartment' ? 'Nearby Apartment Comparables' : 'Nearby Neighborhoods Built Since 2013';
+        }
+
+        const milesBetween = (lat1, lng1, lat2, lng2) => {
+            const d2r = Math.PI / 180, dLat = (lat2 - lat1) * d2r, dLng = (lng2 - lng1) * d2r;
+            const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * d2r) * Math.cos(lat2 * d2r) * Math.sin(dLng / 2) ** 2;
+            return 3958.8 * 2 * Math.asin(Math.sqrt(a));
+        };
+        function pointInRings(x, y, rings) {
+            let inside = false;
+            rings.forEach(r => {
+                for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+                    const [xi, yi] = r[i], [xj, yj] = r[j];
+                    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+                }
+            });
+            return inside;
+        }
+        const ringsBBox = rings => {
+            let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+            rings.forEach(r => r.forEach(([x, y]) => { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }));
+            return [x0, y0, x1, y1];
+        };
+        const ringsCentroid = rings => { const [x0, y0, x1, y1] = ringsBBox(rings); return [(x0 + x1) / 2, (y0 + y1) / 2]; };
+        function quantile(sorted, q) {
+            if (!sorted.length) return null;
+            const i = (sorted.length - 1) * q, lo = Math.floor(i), hi = Math.ceil(i);
+            return sorted[lo] + (sorted[hi] - sorted[lo]) * (i - lo);
+        }
+        const nearParams = (p, miles) => ({
+            geometry: `${p.lng},${p.lat}`, geometryType: 'esriGeometryPoint', inSR: '4326', spatialRel: 'esriSpatialRelIntersects',
+            distance: String(miles), units: 'esriSRUnit_StatuteMile'
+        });
+        // Run async tasks with limited concurrency so a search doesn't flood the state's server
+        async function mapLimit(items, limit, fn) {
+            const out = new Array(items.length);
+            let next = 0;
+            await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+                while (next < items.length) { const i = next++; out[i] = await fn(items[i], i); }
+            }));
+            return out;
+        }
+        // All pages of a query (the server returns at most 2,000 features per request)
+        async function queryAll(params, layerUrl, pageSize = 2000) {
+            const count = (await queryLayer({ ...params, returnCountOnly: 'true' }, layerUrl)).count || 0;
+            const pages = Array.from({ length: Math.ceil(count / pageSize) }, (_, i) => i * pageSize);
+            const res = await mapLimit(pages, 4, offset => queryLayer({
+                ...params, orderByFields: 'objectid', resultOffset: String(offset), resultRecordCount: String(pageSize)
+            }, layerUrl));
+            return res.flatMap(r => r.features || []);
+        }
+
+        async function apartmentComps(p, miles) {
+            const [lo, hi] = COMP_ACRE_RANGE.map(k => k * p.acres);
+            const json = await queryLayer({
+                ...nearParams(p, miles), where: "dlgf_prop_class_code IN ('401','402','403')",
+                outFields: 'objectid,state_parcel_id,parcel_id,dlgf_prop_class_code,prop_add,dlgf_prop_address,prop_city',
+                returnGeometry: 'true', outSR: '4326', maxAllowableOffset: '0.00001', geometryPrecision: '6', resultRecordCount: '2000'
+            });
+            const cands = (json.features || []).filter(f => f.geometry && f.geometry.rings && f.attributes.objectid !== p.objectid)
+                .map(f => ({ a: f.attributes, rings: f.geometry.rings, acres: ringsAreaAcres(f.geometry.rings) }))
+                .filter(c => c.acres >= lo && c.acres <= hi);
+            // Address points per parcel, counted on the server
+            const ids = [...new Set(cands.map(c => c.a.state_parcel_id).filter(Boolean))];
+            const addr = new Map();
+            for (let i = 0; i < ids.length; i += 100) {
+                const r = await queryLayer({
+                    where: `state_parcel_id IN (${ids.slice(i, i + 100).map(v => `'${sqlStr(v)}'`).join(',')})`,
+                    groupByFieldsForStatistics: 'state_parcel_id',
+                    outStatistics: JSON.stringify([{ statisticType: 'count', onStatisticField: 'objectid', outStatisticFieldName: 'n' }])
+                }, ADDRESS_POINTS);
+                (r.features || []).forEach(f => addr.set(f.attributes.state_parcel_id, f.attributes.n));
+            }
+            // Building footprint area whose centre lies on each parcel
+            await mapLimit(cands, 6, async c => {
+                const [x0, y0, x1, y1] = ringsBBox(c.rings);
+                const r = await queryLayer({
+                    geometry: `${x0},${y0},${x1},${y1}`, geometryType: 'esriGeometryEnvelope', inSR: '4326', spatialRel: 'esriSpatialRelIntersects',
+                    where: '1=1', outFields: 'objectid', returnGeometry: 'true', outSR: '4326', resultRecordCount: '2000'
+                }, FOOTPRINTS);
+                c.buildings = 0; c.footprintSqft = 0;
+                (r.features || []).forEach(b => {
+                    if (!b.geometry || !b.geometry.rings) return;
+                    const [cx, cy] = ringsCentroid(b.geometry.rings);
+                    if (!pointInRings(cx, cy, c.rings)) return;
+                    c.buildings++; c.footprintSqft += ringsAreaAcres(b.geometry.rings) * 43560;
+                });
+                c.addressPoints = addr.get(c.a.state_parcel_id) || 0;
+            });
+            // Calibrate footprint square feet per unit on comps whose address points look like one per unit
+            const ratios = cands.filter(c => c.addressPoints >= APT_BANDS[c.a.dlgf_prop_class_code][0] && c.footprintSqft > 0)
+                .map(c => c.footprintSqft / c.addressPoints)
+                .filter(r => r >= FOOTPRINT_SQFT_PER_UNIT / 2.5 && r <= FOOTPRINT_SQFT_PER_UNIT * 2.5).sort((x, y) => x - y);
+            const sqftPerUnit = ratios.length >= 3 ? quantile(ratios, 0.5) : FOOTPRINT_SQFT_PER_UNIT;
+            return {
+                sqftPerUnit, calibratedOn: ratios.length >= 3 ? ratios.length : 0,
+                comps: cands.map(c => {
+                    const [bandMin, bandMax] = APT_BANDS[c.a.dlgf_prop_class_code];
+                    const fpUnits = c.footprintSqft ? c.footprintSqft / sqftPerUnit : null;
+                    let units = null, source = null;
+                    if (c.addressPoints >= bandMin && (fpUnits == null || c.addressPoints >= 0.6 * fpUnits)) { units = c.addressPoints; source = 'address points'; }
+                    else if (fpUnits != null && fpUnits >= bandMin) { units = Math.round(fpUnits); source = 'building footprints'; }
+                    const [cx, cy] = ringsCentroid(c.rings);
+                    return {
+                        rings: c.rings, acres: c.acres, units, source, cls: c.a.dlgf_prop_class_code, band: [bandMin, bandMax],
+                        addressPoints: c.addressPoints, buildings: c.buildings, footprintSqft: c.footprintSqft,
+                        density: units != null ? units / c.acres : null, miles: milesBetween(p.lat, p.lng, cy, cx),
+                        label: c.a.prop_add || c.a.dlgf_prop_address || c.a.parcel_id || 'Apartment parcel', city: c.a.prop_city,
+                        excludedWhy: units == null ? 'too few address points or buildings mapped (may be new or under construction)' : null
+                    };
+                })
+            };
+        }
+
+        async function neighborhoodComps(p, miles) {
+            const [lo, hi] = COMP_ACRE_RANGE.map(k => k * Math.max(p.acres, 3));
+            // The 2013 layer stores Web Mercator square metres: true area / cos²(latitude)
+            const merc = SQM_PER_ACRE / Math.cos(p.lat * Math.PI / 180) ** 2;
+            const old = await queryAll({
+                ...nearParams(p, miles), where: `SHAPE__Area BETWEEN ${lo * merc * 0.97} AND ${hi * merc * 1.03}`,
+                outFields: 'objectid,parcel_id,class_code_general', returnGeometry: 'true', outSR: '4326', maxAllowableOffset: '0.00001', geometryPrecision: '6'
+            }, PARCELS_2013);
+            const tracts = old.filter(f => f.geometry && f.geometry.rings)
+                .map(f => ({ rings: f.geometry.rings, acres: ringsAreaAcres(f.geometry.rings), bbox: ringsBBox(f.geometry.rings), cls2013: f.attributes.class_code_general }))
+                .filter(t => t.acres >= lo && t.acres <= hi);
+            if (!tracts.length) return { comps: [] };
+            // Today's residential parcels in the same radius: centre points only
+            const now = await queryAll({
+                ...nearParams(p, miles + 0.5), where: "dlgf_prop_class_code LIKE '5%'",
+                outFields: 'objectid,latitude,longitude,dlgf_prop_class_code,prop_add,dlgf_prop_address', returnGeometry: 'false'
+            }, PARCEL_LAYER);
+            const pts = now.map(f => f.attributes).filter(a => a.latitude != null && a.longitude != null);
+            const comps = tracts.map(t => {
+                const [x0, y0, x1, y1] = t.bbox;
+                let homes = 0, lots = 0;
+                pts.forEach(a => {
+                    if (a.longitude < x0 || a.longitude > x1 || a.latitude < y0 || a.latitude > y1) return;
+                    if (!pointInRings(a.longitude, a.latitude, t.rings)) return;
+                    const cls = String(a.dlgf_prop_class_code || '');
+                    if (/^5[1-9]\d$/.test(cls)) homes++;
+                    else if (cls === '500' && !LOT_COMMON_RE.test(a.prop_add || a.dlgf_prop_address || '')) lots++;
+                });
+                const [cx, cy] = ringsCentroid(t.rings);
+                return {
+                    rings: t.rings, acres: t.acres, homes, lots, units: homes + lots, density: (homes + lots) / t.acres, cls2013: t.cls2013,
+                    miles: milesBetween(p.lat, p.lng, cy, cx), source: '2013 vs 2025 parcels'
+                };
+            }).filter(c => c.units >= MIN_NEIGHBORHOOD_LOTS);
+            return { comps };
+        }
+
+        function loadComps() {
+            const p = selectedParcel;
+            if (!p) return;
+            const key = `${p.objectid}|${devMode}`;
+            if (p.acres == null || p.lat == null) compCache.set(key, Promise.resolve({ error: 'This parcel has no mapped boundary, so comparables can\'t be searched.' }));
+            else if (p.acres < MIN_SITE_ACRES[devMode]) compCache.set(key, Promise.resolve({ error: `At ${fmtAcres(p.acres)} acres this parcel is below the ${MIN_SITE_ACRES[devMode]} acres used as the minimum for ${devMode === 'apartment' ? 'apartment' : 'neighborhood'} comparables.` }));
+            if (!compCache.has(key)) {
+                compCache.set(key, (async () => {
+                    const finder = devMode === 'apartment' ? apartmentComps : neighborhoodComps;
+                    let r = null, miles = null;
+                    for (miles of COMP_RADII[devMode]) {
+                        r = await finder(p, miles);
+                        if (r.comps.filter(c => c.density != null).length >= MIN_COMPS) break;
+                    }
+                    return { ...r, miles };
+                })().catch(err => { compCache.delete(key); return { error: `Couldn't reach IndianaMap for comparables (${err.message}).` }; }));
+            }
+            renderComps(p, devMode, null);
+            compCache.get(key).then(r => { if (selectedParcel === p) renderComps(p, devMode, r); });
+        }
+
+        function compStats(r) {
+            const used = (r && r.comps || []).filter(c => c.density != null);
+            const d = used.map(c => c.density).sort((a, b) => a - b);
+            return { used, n: used.length, p25: quantile(d, 0.25), med: quantile(d, 0.5), p75: quantile(d, 0.75) };
+        }
+
+        let lastComps = null; // { parcel, mode, result } shown in the Development Engine
+        function renderCapacity() {
+            const cfg = DEV_MODES[devMode];
+            const m = computeModel();
+            const cap = document.getElementById('ai-capacity'), sub = document.getElementById('cap-sub');
+            const r = lastComps && lastComps.parcel === selectedParcel && lastComps.mode === devMode ? lastComps.result : null;
+            const st = compStats(r);
+            if (m && st.n >= MIN_COMPS) {
+                const f = d => Math.round(d * m.gross).toLocaleString();
+                document.getElementById('cap-label').textContent = 'Development Capacity (Comp-Based)';
+                cap.textContent = `${f(st.p25)}–${f(st.p75)} ${cfg.units}`;
+                sub.textContent = `Median ${f(st.med)} at ${st.med.toFixed(1)} ${cfg.units}/acre gross · your model: ${m.units.toLocaleString()}`;
+            } else {
+                document.getElementById('cap-label').textContent = 'Development Capacity (Assumption-Based)';
+                cap.textContent = m ? `${m.units.toLocaleString()} ${m.units === 1 ? cfg.unit : cfg.units}` : '–';
+                sub.textContent = m ? `${m.density} ${cfg.units}/acre on ${fmtAcres(m.net)} net acres` : '';
+            }
+        }
+
+        function renderComps(p, mode, r) {
+            lastComps = { parcel: p, mode, result: r };
+            const cfg = DEV_MODES[mode];
+            const conf = document.getElementById('comp-confidence'), summary = document.getElementById('comp-summary');
+            const list = document.getElementById('comp-list'), method = document.getElementById('comp-method');
+            if (compLayer) compLayer.clearLayers(); else compLayer = L.featureGroup().addTo(map);
+            renderCapacity();
+            if (!r) {
+                conf.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Searching`;
+                summary.textContent = mode === 'apartment' ? 'Finding apartment parcels of similar size nearby and counting their units…'
+                    : 'Finding nearby tracts of similar size that were one parcel in 2013 and counting the homes on them now…';
+                list.innerHTML = ''; method.textContent = '';
+                lucide.createIcons();
+                return;
+            }
+            if (r.error) {
+                conf.innerHTML = `<i data-lucide="circle-slash" class="w-4 h-4"></i> None`;
+                summary.textContent = r.error; list.innerHTML = ''; method.textContent = '';
+                lucide.createIcons();
+                return;
+            }
+            const st = compStats(r);
+            const level = st.n >= 6 ? ['High', 'text-emerald-400', 'shield-check'] : st.n >= MIN_COMPS ? ['Medium', 'text-amber-400', 'shield'] : ['None', 'text-slate-400', 'circle-slash'];
+            conf.className = `text-sm font-bold flex items-center gap-1 justify-end ${level[1]}`;
+            conf.innerHTML = `<i data-lucide="${level[2]}" class="w-4 h-4"></i> ${level[0]} (${st.n} comp${st.n === 1 ? '' : 's'})`;
+            const within = `within ${r.miles} miles`;
+            if (st.n >= MIN_COMPS) {
+                summary.innerHTML = `${st.n} comparable${st.n === 1 ? '' : 's'} ${within} were built at <strong class="text-white">${st.p25.toFixed(1)}–${st.p75.toFixed(1)} ${cfg.units}/acre</strong> (middle half; median ${st.med.toFixed(1)}), on gross acreage, so roads, ponds and open space are already counted.
+                    <div class="pt-2"><button onclick="applyCompDensity()" class="px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 hover:border-emerald-500 text-[10px] font-semibold">Use comp median in the model (${st.med.toFixed(1)}/acre, 0% deduction)</button></div>`;
+            } else {
+                summary.textContent = `Only ${st.n} usable comparable${st.n === 1 ? '' : 's'} ${within}. A comp-based range needs at least ${MIN_COMPS}, so the capacity above comes from the density assumption below.`;
+            }
+            const usable = r.comps.filter(c => c.density != null).sort((a, b) => a.miles - b.miles);
+            const excluded = r.comps.filter(c => c.density == null);
+            const rows = usable.map((c, i) => {
+                const what = mode === 'apartment'
+                    ? `<strong class="text-white">${c.units.toLocaleString()} units</strong> on ${fmtAcres(c.acres)} ac`
+                    : `<strong class="text-white">${c.homes.toLocaleString()} homes${c.lots ? ` + ${c.lots} lots` : ''}</strong> on a ${fmtAcres(c.acres)} ac tract`;
+                const detail = mode === 'apartment'
+                    ? `${escapeHtml(classLabel(c.cls))} · from ${c.source}${c.source === 'building footprints' ? ` (${c.buildings} bldgs, ${Math.round(c.footprintSqft).toLocaleString()} sq ft)` : ''}`
+                    : `One parcel in 2013${c.cls2013 ? ` (${escapeHtml(CLASS_GROUP[String(c.cls2013)[0]] || 'class ' + c.cls2013)})` : ''}; ${c.homes} houses and ${c.lots} platted vacant lots on it now`;
+                return `<div onclick="zoomToComp(${i})" class="p-2.5 rounded-lg bg-slate-950 border border-slate-800 hover:border-emerald-500 cursor-pointer text-[11px] space-y-0.5">
+                        <div class="flex justify-between gap-2">
+                            <span class="text-slate-200 truncate">${mode === 'apartment' ? escapeHtml(c.label) : `Tract ${c.miles.toFixed(1)} mi away`}</span>
+                            <span class="font-mono font-semibold text-indigo-200 shrink-0">${c.density.toFixed(1)}/ac</span>
+                        </div>
+                        <div class="text-slate-400">${what} · ${c.miles.toFixed(1)} mi</div>
+                        <div class="text-[10px] text-slate-500">${detail}</div>
+                    </div>`;
+            });
+            list.innerHTML = rows.join('') || `<p class="text-[11px] text-slate-500">No comparables found ${within}.</p>`;
+            if (excluded.length) list.innerHTML += `<p class="text-[10px] text-slate-500">${excluded.length} more apartment parcel${excluded.length === 1 ? '' : 's'} of similar size left out: ${excluded[0].excludedWhy}.</p>`;
+            method.textContent = mode === 'apartment'
+                ? `Comps: parcels in DLGF apartment classes 401–403 ${within}, ${COMP_ACRE_RANGE[0]}–${COMP_ACRE_RANGE[1]}× this parcel's acreage. Units are counted from IndianaMap address points where counties map one per unit; otherwise estimated from building footprints (2016–2020 lidar) at ${Math.round(r.sqftPerUnit)} sq ft of footprint per unit${r.calibratedOn ? `, calibrated on ${r.calibratedOn} nearby comps` : ' (default)'}. Estimates, not certified unit counts.`
+                : `Comps: tracts ${within} that were a single parcel of ${COMP_ACRE_RANGE[0]}–${COMP_ACRE_RANGE[1]}× this parcel's acreage in IndianaMap's 2013 parcel layer and hold at least ${MIN_NEIGHBORHOOD_LOTS} residential lots in 2025 (houses plus platted vacant lots; common areas excluded). Density is lots per gross tract acre. Neighborhoods built before 2013 aren't included.`;
+            usable.forEach((c, i) => {
+                const poly = L.polygon(c.rings.map(ring => ring.map(([x, y]) => [y, x])), { color: '#818cf8', weight: 2, dashArray: '4 3', fillColor: '#6366f1', fillOpacity: 0.12 });
+                poly.bindTooltip(`${mode === 'apartment' ? escapeHtml(c.label) + ': ' + c.units + ' units' : c.homes + ' homes + ' + c.lots + ' lots'} · ${c.density.toFixed(1)}/ac`, { sticky: true });
+                c._layer = poly;
+                compLayer.addLayer(poly);
+            });
+            lastComps.usable = usable;
+            if (usable.length) {
+                const bounds = compLayer.getBounds();
+                if (p._layer && p._layer.getBounds) bounds.extend(p._layer.getBounds()); else bounds.extend([p.lat, p.lng]);
+                // The detail panel sits over the right side of the map; keep the site and comps clear of it
+                const panel = document.getElementById('detail-panel');
+                const covered = panel.classList.contains('translate-x-full') ? 0 : panel.offsetWidth;
+                const right = covered < map.getSize().x * 0.6 ? covered : 0;
+                map.fitBounds(bounds, { paddingTopLeft: [40, 40], paddingBottomRight: [right + 40, 40], maxZoom: 15 });
+            }
+            lucide.createIcons();
+        }
+
+        function zoomToComp(i) {
+            const c = lastComps && lastComps.usable && lastComps.usable[i];
+            if (c && c._layer) map.fitBounds(c._layer.getBounds(), { maxZoom: 17, padding: [60, 60] });
+        }
+
+        function applyCompDensity() {
+            const st = compStats(lastComps && lastComps.result);
+            if (st.n < MIN_COMPS) return;
+            document.getElementById('calc-deduct').value = 0;
+            document.getElementById('calc-density').value = st.med.toFixed(1);
+            calculateResidual();
         }
 
         // ---- Watchlist (saved in this browser) ----
@@ -2066,8 +2423,13 @@ svg.leaflet-image-layer.leaflet-interactive path {
                         : 'This record has no DLGF property class code.';
                 } else if (/unit|density|yield|capacity|build|residual|rlv|land value/.test(q)) {
                     const m = computeModel();
+                    const st = lastComps && lastComps.parcel === p && lastComps.mode === devMode ? compStats(lastComps.result) : { n: 0 };
+                    const cfg = DEV_MODES[devMode];
+                    const compNote = st.n >= MIN_COMPS
+                        ? ` Nearby comparables (${st.n}, ${devMode === 'apartment' ? 'apartment parcels' : 'neighborhoods built since 2013'}) were built at ${b(st.p25.toFixed(1) + '–' + st.p75.toFixed(1) + ' ' + cfg.units + '/acre')} gross, which on ${fmtAcres(m ? m.gross : 0)} acres is ${b(Math.round(st.p25 * (m ? m.gross : 0)) + '–' + Math.round(st.p75 * (m ? m.gross : 0)) + ' ' + cfg.units)}.`
+                        : ' Open the Development Engine tab to search nearby comparables.';
                     reply = m
-                        ? `Using your assumptions (${m.deduct}% unbuildable, ${m.density} units/acre): ${b(fmtAcres(m.net) + ' net acres')} → ${b(m.units.toLocaleString() + ' units')}, residual land value ${b('$' + Math.round(m.rlv).toLocaleString())}. No comps are loaded, so this is assumption-only.`
+                        ? `${devMode === 'apartment' ? 'Apartment' : 'Neighborhood'} development, using your assumptions (${m.deduct}% unbuildable, ${m.density} ${cfg.units}/acre): ${b(fmtAcres(m.net) + ' net acres')} → ${b(m.units.toLocaleString() + ' ' + cfg.units)}, residual land value ${b('$' + Math.round(m.rlv).toLocaleString())}.${compNote}`
                         : 'There is no boundary for this parcel, so I can\'t compute yield.';
                 } else if (/school|township|tax|district|library|city/.test(q)) {
                     reply = `Township: ${b(p.township || '—')}. Taxing city: ${b(p.taxCity || '—')}. School district: ${b(p.school || '—')}. Tax district code: ${b(p.taxDistrict || '—')}.`;
