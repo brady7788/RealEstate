@@ -13,6 +13,7 @@ Statewide off-market land search and development underwriting for Indiana. LandL
   - **Development Engine:** choose **Apartment Development** or **Neighborhood Development**. LandLens finds comparable projects near the parcel and shows the density they were built at, a comp-based unit range for the site, and an editable residual land value model:
     - *Apartments:* parcels within 3 miles (widening to 6, then 10) in DLGF apartment classes 401–403, from half to twice the site's acreage. Units are counted from IndianaMap's statewide address points where a county maps one per unit, otherwise estimated from building footprints at a footprint-per-unit ratio calibrated on the nearby comps.
     - *Neighborhoods:* tracts within 3 miles (widening to 5) that were a single parcel of similar acreage in IndianaMap's 2013 parcel layer and now hold at least 8 house lots. Density is homes plus platted lots per gross tract acre.
+    - Closer comps count more: each is weighted 1 / (miles + 0.5), so a comp 1 mile away counts 2.3× one 3 miles away. The range (25th–75th percentile) and median are weighted, and each comp shows its share of the weight.
     - A range is shown only with at least 3 comps. Comps are outlined on the map; click one to zoom to it.
   - **Analyst Chat:** a built-in assistant that answers from the parcel's record and your model inputs. It doesn't call any AI service and needs no API key.
 - **Watchlist** saved in your browser.

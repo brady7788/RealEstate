@@ -2200,10 +2200,31 @@ svg.leaflet-image-layer.leaflet-interactive path {
             compCache.get(key).then(r => { if (selectedParcel === p) renderComps(p, devMode, r); });
         }
 
+        // Closer comps count more: weight 1 at half a mile, 0.67 at 1 mile, 0.29 at 3 miles (1 mile outweighs 3 miles 2.3×)
+        const compWeight = miles => 1 / (miles + 0.5);
+        // Weighted quantile: each comp sits at the midpoint of its share of the total weight, interpolated between comps
+        function weightedQuantile(items, q) {
+            if (!items.length) return null;
+            const sorted = [...items].sort((a, b) => a.v - b.v);
+            const total = sorted.reduce((t, x) => t + x.w, 0);
+            let cum = 0;
+            const pos = sorted.map(x => { const p = (cum + x.w / 2) / total; cum += x.w; return p; });
+            if (q <= pos[0]) return sorted[0].v;
+            for (let i = 1; i < sorted.length; i++) {
+                if (q <= pos[i]) return sorted[i - 1].v + (sorted[i].v - sorted[i - 1].v) * (q - pos[i - 1]) / (pos[i] - pos[i - 1]);
+            }
+            return sorted[sorted.length - 1].v;
+        }
         function compStats(r) {
             const used = (r && r.comps || []).filter(c => c.density != null);
-            const d = used.map(c => c.density).sort((a, b) => a - b);
-            return { used, n: used.length, p25: quantile(d, 0.25), med: quantile(d, 0.5), p75: quantile(d, 0.75) };
+            const items = used.map(c => ({ v: c.density, w: compWeight(c.miles) }));
+            const totalWeight = items.reduce((t, x) => t + x.w, 0);
+            const plain = used.map(c => c.density).sort((a, b) => a - b);
+            return {
+                used, n: used.length, totalWeight,
+                p25: weightedQuantile(items, 0.25), med: weightedQuantile(items, 0.5), p75: weightedQuantile(items, 0.75),
+                unweightedMed: quantile(plain, 0.5)
+            };
         }
 
         let lastComps = null; // { parcel, mode, result } shown in the Development Engine
@@ -2253,6 +2274,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
             const within = `within ${r.miles} miles`;
             if (st.n >= MIN_COMPS) {
                 summary.innerHTML = `${st.n} comparable${st.n === 1 ? '' : 's'} ${within} were built at <strong class="text-white">${st.p25.toFixed(1)}–${st.p75.toFixed(1)} ${cfg.units}/acre</strong> (middle half; median ${st.med.toFixed(1)}), on gross acreage, so roads, ponds and open space are already counted.
+                    Closer comps weigh more: one 1 mile away counts 2.3× one 3 miles away${Math.abs(st.med - st.unweightedMed) >= 0.05 ? ` (unweighted median ${st.unweightedMed.toFixed(1)})` : ''}.
                     <div class="pt-2"><button onclick="applyCompDensity()" class="px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 hover:border-emerald-500 text-[10px] font-semibold">Use comp median in the model (${st.med.toFixed(1)}/acre, 0% deduction)</button></div>`;
             } else {
                 summary.textContent = `Only ${st.n} usable comparable${st.n === 1 ? '' : 's'} ${within}. A comp-based range needs at least ${MIN_COMPS}, so the capacity above comes from the density assumption below.`;
@@ -2271,7 +2293,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
                             <span class="text-slate-200 truncate">${mode === 'apartment' ? escapeHtml(c.label) : `Tract ${c.miles.toFixed(1)} mi away`}</span>
                             <span class="font-mono font-semibold text-indigo-200 shrink-0">${c.density.toFixed(1)}/ac</span>
                         </div>
-                        <div class="text-slate-400">${what} · ${c.miles.toFixed(1)} mi</div>
+                        <div class="text-slate-400">${what} · ${c.miles.toFixed(1)} mi · ${(compWeight(c.miles) / st.totalWeight * 100).toFixed(c.miles > 2 ? 1 : 0)}% weight</div>
                         <div class="text-[10px] text-slate-500">${detail}</div>
                     </div>`;
             });
