@@ -1125,7 +1125,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
         const fmtAcres = a => a == null ? '-' : (a >= 100 ? a.toFixed(0) : a >= 10 ? a.toFixed(1) : a.toFixed(2));
 
         // ---- State ----
-        let map, resultsLayer, baseLayers = {}, activeBase;
+        let map, resultsLayer, activeBase;
         let results = [];                 // parcels currently listed
         let selectedParcel = null;
         let searchState = { offset: 0, hasMore: false, areaServerSide: true, seq: 0 };
@@ -1149,26 +1149,76 @@ svg.leaflet-image-layer.leaflet-interactive path {
         // ---- Map ----
         function initMap() {
             map = L.map('map', { zoomControl: false, preferCanvas: true }).setView([39.85, -86.25], 8);
-            baseLayers.dark = MAPBOX_TOKEN
-                ? L.tileLayer(`https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`, {
-                    attribution: '© <a href="https://www.mapbox.com/about/maps/">Mapbox</a> © <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-                    tileSize: 512, zoomOffset: -1, maxZoom: 20 })
-                : L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-                    attribution: '© <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/attributions">CARTO</a>',
-                    subdomains: 'abcd', maxZoom: 20 });
-            baseLayers.sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                attribution: 'Imagery © Esri, Maxar, Earthstar Geographics', maxZoom: 20 });
-            activeBase = baseLayers.dark.addTo(map);
+            activeBase = basemapLayer('dark', 0).addTo(map);
 
             L.control.zoom({ position: 'topright' }).addTo(map);
+            loadCountyOutlines();
             resultsLayer = L.featureGroup().addTo(map);
             map.on('click', e => identifyAt(e.latlng));
             map.on('moveend', () => { if (document.getElementById('filter-map-area').checked) runSearch(true, { keepView: true }); });
         }
 
+        // Tile sources for each basemap, in order of preference. Some networks, browsers and extensions block
+        // a tile host; if a source's tiles fail before any load, the map moves on to the next one.
+        const ESRI_TILES = name => `https://server.arcgisonline.com/ArcGIS/rest/services/${name}/MapServer/tile/{z}/{y}/{x}`;
+        const OSM_ATTR = '© <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+        const BASEMAPS = {
+            dark: [
+                MAPBOX_TOKEN && [`https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`,
+                    { attribution: `© <a href="https://www.mapbox.com/about/maps/">Mapbox</a> ${OSM_ATTR}`, tileSize: 512, zoomOffset: -1, maxZoom: 20 }],
+                ['https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+                    { attribution: `${OSM_ATTR} © <a href="https://carto.com/attributions">CARTO</a>`, subdomains: 'abcd', maxZoom: 20 }],
+                [ESRI_TILES('Canvas/World_Dark_Gray_Base'), { attribution: 'Tiles © Esri, HERE, Garmin, © OpenStreetMap contributors', maxNativeZoom: 16, maxZoom: 20 }],
+                [ESRI_TILES('World_Street_Map'), { attribution: 'Tiles © Esri, HERE, Garmin, USGS, © OpenStreetMap contributors', maxNativeZoom: 19, maxZoom: 20 }]
+            ].filter(Boolean),
+            sat: [
+                [ESRI_TILES('World_Imagery'), { attribution: 'Imagery © Esri, Maxar, Earthstar Geographics', maxZoom: 20 }],
+                ['https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}',
+                    { attribution: 'Imagery: <a href="https://www.usgs.gov/">USGS</a> The National Map', maxNativeZoom: 16, maxZoom: 20 }]
+            ]
+        };
+        const TILE_FAILURES_BEFORE_FALLBACK = 4;
+        let basemapChoice = 'dark';
+
+        function basemapLayer(which, i) {
+            const [url, opts] = BASEMAPS[which][i];
+            const layer = L.tileLayer(url, opts);
+            let loaded = false, failed = 0;
+            layer.on('tileload', () => { loaded = true; });
+            layer.on('tileerror', () => {
+                if (loaded || ++failed !== TILE_FAILURES_BEFORE_FALLBACK || i + 1 >= BASEMAPS[which].length) return;
+                if (activeBase !== layer || basemapChoice !== which) return;
+                map.removeLayer(layer);
+                activeBase = basemapLayer(which, i + 1).addTo(map);
+                activeBase.bringToBack();
+            });
+            return layer;
+        }
+
+        // County outlines from IndianaMap, the same server as the parcels, so Indiana shows even if every tile host is blocked
+        const COUNTY_LAYER = 'https://gisdata.in.gov/server/rest/services/COUNTY_BOUNDARY_IGS_IN/MapServer/0';
+        async function loadCountyOutlines() {
+            try {
+                const json = await queryLayer({
+                    where: '1=1', outFields: 'NAME_L', returnGeometry: 'true', outSR: '4326',
+                    maxAllowableOffset: '0.001', geometryPrecision: '4'
+                }, COUNTY_LAYER);
+                map.createPane('counties').style.zIndex = 350; // above tiles, below parcels
+                const renderer = L.canvas({ pane: 'counties' });
+                (json.features || []).forEach(f => {
+                    if (!f.geometry || !f.geometry.rings) return;
+                    L.polygon(f.geometry.rings.map(r => r.map(([x, y]) => [y, x])), {
+                        pane: 'counties', renderer, interactive: false,
+                        color: '#94a3b8', weight: 1, opacity: 0.55, fill: false
+                    }).addTo(map);
+                });
+            } catch { /* outlines are a nicety; the tiles and parcels don't depend on them */ }
+        }
+
         function setBasemap(which) {
+            basemapChoice = which;
             map.removeLayer(activeBase);
-            activeBase = baseLayers[which].addTo(map);
+            activeBase = basemapLayer(which, 0).addTo(map);
             activeBase.bringToBack();
             document.getElementById('basemap-dark').className = which === 'dark' ? 'px-3 py-1.5 bg-emerald-600 text-white' : 'px-3 py-1.5 text-slate-300 hover:text-white';
             document.getElementById('basemap-sat').className = which === 'sat' ? 'px-3 py-1.5 bg-emerald-600 text-white' : 'px-3 py-1.5 text-slate-300 hover:text-white';
