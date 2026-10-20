@@ -6,10 +6,10 @@ Statewide off-market land search and development underwriting for Indiana. LandL
 
 - **Statewide parcel search** across all 92 counties, querying IndianaMap's *Parcel Boundaries of Indiana 2025* layer live.
 - **Filters:** county, DLGF property class (vacant land, agricultural, industrial, commercial, residential, exempt), minimum and maximum acreage, address / parcel ID / city / zip text search, and limit to the visible map area. HOA / subdivision common areas are hidden by default.
-- **Assessed value and ownership for Marion County**, pulled live from the City of Indianapolis / Marion County's *Parcels w/ Owner Information & Assessed Values* service, with a Min / Max Assessed Value filter. Other counties aren't connected yet.
+- **Assessed value and ownership in all 92 counties**, from each county's 2025 pay 2026 Real Property file on Indiana Gateway, with a Min / Max Assessed Value filter. Marion County is also pulled live from the City of Indianapolis / Marion County's *Parcels w/ Owner Information & Assessed Values* service, which is tried first.
 - **Interactive map** with dark and satellite basemaps; click anywhere to identify a parcel.
 - **Parcel detail panel:**
-  - **Parcel Record:** parcel IDs, acreage calculated from the boundary, property class, address, township, school and tax districts, plus assessed value, owner and ownership indicators in Marion County.
+  - **Parcel Record:** parcel IDs, acreage calculated from the boundary, property class, address, township, school and tax districts, plus assessed value, owner, mailing address, transfer date, assessor class, deeded acreage and ownership indicators.
   - **Development Engine:** assumption-based site yield and an editable residual land value model.
   - **Analyst Chat:** a built-in assistant that answers from the parcel's record and your model inputs. It doesn't call any AI service and needs no API key.
 - **Watchlist** saved in your browser.
@@ -17,6 +17,8 @@ Statewide off-market land search and development underwriting for Indiana. LandL
 ## Running it
 
 Open `index.html` in Chrome, Safari, Edge or Firefox. It needs an internet connection for parcel data and map tiles. Some file previewers block outside requests; if parcels don't load, open it in a regular browser tab.
+
+Assessed values are read from `data/assessments/`. Served from GitHub Pages or a local server, the page loads them from there; opened directly as a file, it loads the same files from this repository on GitHub.
 
 To serve it locally instead:
 
@@ -35,15 +37,28 @@ By default the map uses the free CARTO dark basemap. To use Mapbox instead, set 
 | Data | Source | Notes |
 | --- | --- | --- |
 | Parcel boundaries, IDs, addresses, property class, tax districts | [IndianaMap / IGIO, Parcel Boundaries of Indiana 2025](https://gisdata.in.gov/server/rest/services/Hosted/Parcel_Boundaries_of_Indiana_2025/FeatureServer/0) | Statewide, updated annually |
+| Assessed values, owner, mailing address, transfer date, deeded acreage (all counties) | [Indiana Gateway for Government Units, Property Files: Real Property](https://gateway.ifionline.org/public/download.aspx) | Files counties submit to the DLGF, 2025 pay 2026; layout per 50 IAC 26. Built into `data/assessments/` |
 | Marion County assessed values, owner, mailing address | [City of Indianapolis / Marion County, Parcels w/ Owner Information & Assessed Values](https://data.indy.gov/datasets/IndyGIS::parcels-w-owner-information-assessed-values) | Updated nightly from IndyGIS and the Marion County Assessor |
 
 Data derived from the City of Indianapolis / Marion County service is provided by the City of Indianapolis / Marion County, IN, as its license requires.
 
 Acreage is calculated from each parcel's mapped boundary. Assessed values for agricultural, wooded and other farm-use land are set by Indiana's farmland formula (2025 base rate $2,120/acre) and are not market values; the app flags these parcels.
 
+Parcels are matched to assessor records by their 18-digit state parcel number. In a sample of 24,000 parcels across 12 counties, 99.7% matched; the rest were mostly split, combined or renumbered since the assessment. Parcels with no state parcel number in the IndianaMap layer can't be matched.
+
+### Updating the assessment data
+
+1. On [Indiana Gateway's download page](https://gateway.ifionline.org/public/download.aspx), under *Property Files*, choose *Real Property*, the year, and a county, then *Download*. Repeat for each county; the builder expects one county per zip.
+2. Put the zips in one folder and run:
+
+```bash
+python3 tools/build_assessments.py path/to/zips data/assessments
+```
+
+This rewrites `data/assessments/index.json` and each county's shard files (`NN/sK.json.gz`, records sorted by state parcel number).
+
 ## Not yet included
 
-- Assessed values and ownership outside Marion County
 - Sale history, zoning, floodplain and a comparable-projects database
 
 ## Third-party libraries

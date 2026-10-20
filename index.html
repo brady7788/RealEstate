@@ -757,7 +757,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
                 <div class="grid grid-cols-2 gap-2">
                     <div>
                         <label class="text-[10px] uppercase font-semibold text-slate-400 block mb-1">County</label>
-                        <select id="filter-county" onchange="updateAvInputs(); runSearch(true)" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500"></select>
+                        <select id="filter-county" onchange="runSearch(true)" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500"></select>
                     </div>
                     <div>
                         <label class="text-[10px] uppercase font-semibold text-slate-400 block mb-1">Property Class</label>
@@ -784,7 +784,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
                     </div>
                 </div>
 
-                <div id="av-filter-wrap" class="grid grid-cols-2 gap-2" title="Assessed values come from Marion County's assessor data (via data.indy.gov). Other counties aren't connected yet.">
+                <div id="av-filter-wrap" class="grid grid-cols-2 gap-2" title="Assessed values come from each county's 2025 pay 2026 assessor file (Indiana Gateway); Marion County also from data.indy.gov">
                     <div>
                         <label class="text-[10px] uppercase font-semibold text-slate-400 block mb-1">Min. Assessed Value</label>
                         <input type="number" id="filter-min-av" min="0" step="10000" placeholder="Any" onchange="runSearch(true)" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:border-emerald-500 disabled:text-slate-600">
@@ -1143,7 +1143,6 @@ svg.leaflet-image-layer.leaflet-interactive path {
             lucide.createIcons();
             initMap();
             updateWatchlistCount();
-            updateAvInputs();
             runSearch(true);
         });
 
@@ -1400,7 +1399,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
                     }
                     results = results.concat(kept);
                     keptNow += kept.length;
-                } while (avActive && !assessServiceDown && searchState.hasMore && keptNow < 25 && pages < 5);
+                } while (avActive && !gatewayDown && searchState.hasMore && keptNow < 25 && pages < 5);
             } catch (err) {
                 if (seq !== searchState.seq) return;
                 setLoading(false);
@@ -1419,13 +1418,13 @@ svg.leaflet-image-layer.leaflet-interactive path {
             setSourceStatus('ok', 'Live');
             const notes = [];
             if (!searchState.areaServerSide && (f.minAcres != null || f.maxAcres != null)) notes.push('Acreage filtered in browser');
-            if (avActive) notes.push(assessServiceDown ? "Couldn't reach Marion assessor data" : `Assessed value checked on ${searchState.offset.toLocaleString()} parcels`);
+            if (avActive) notes.push(gatewayDown ? "Couldn't load assessor data" : `Assessed value checked on ${searchState.offset.toLocaleString()} parcels`);
             document.getElementById('query-note').textContent = notes.join(' · ');
             renderParcelList();
             drawResults();
             if (reset && !opts.keepView && resultsLayer.getLayers().length) map.fitBounds(resultsLayer.getBounds(), { padding: [30, 30], maxZoom: 16 });
             if (reset) updateCount(f, where, seq);
-            // Show assessed values on Marion cards without blocking the list
+            // Show assessed values on the cards without blocking the list
             if (!avActive) enrichAssessments(results).then(() => { if (seq === searchState.seq) renderParcelList(); });
         }
 
@@ -1460,12 +1459,13 @@ svg.leaflet-image-layer.leaflet-interactive path {
             }
         }
 
-        // ---- Marion County assessed values & ownership (City of Indianapolis / Marion County open data, updated nightly) ----
+        // ---- Assessed values & ownership ----
+        // Every county: Indiana Gateway Real Property (PARCEL) files, built into data/assessments by tools/build_assessments.py.
+        // Marion County: also live from City of Indianapolis / Marion County open data (updated nightly), tried first.
         const INDY_PARCELS = 'https://gis.indy.gov/server/rest/services/MapIndy/MapIndyProperty/MapServer/10';
         const INDY_FIELDS = ['PARCEL_C', 'STATEPARCELNUMBER', 'FULLOWNERNAME', 'OWNERADDRESS', 'OWNERADDRESS2', 'OWNERCITY', 'OWNERSTATE', 'OWNERZIP',
             'OWNERFOREIGNCOUNTRY', 'ASSESSORYEAR_LANDTOTAL', 'ASSESSORYEAR_IMPTOTAL', 'ASSESSORYEAR_TOTALAV', 'PROPERTY_CLASS',
             'PROPERTY_SUB_CLASS_DESCRIPTION', 'NEIGHBORHOOD'].join(',');
-        const MARION_FIPS = '18097';
         const AV_BATCH = 100;
         // Indiana agricultural land base rate, assessment year 2025 (DLGF, after SEA 1 / HEA 1427). Land assessed
         // below AG_RATE_FLAG per acre is almost certainly on the farmland formula rather than market value.
@@ -1473,6 +1473,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
         const AG_RATE_FLAG = 4000;
         const ENTITY_RE = /\b(LLC|L L C|INC|CORP|CORPORATION|COMPANY|CO|LP|LLP|LTD|TRUST|TR|TRUSTEE|BANK|ASSOCIATION|ASSN|PARTNERS|PARTNERSHIP|HOLDINGS|PROPERTIES|INVESTMENTS|DEVELOPMENT|GROUP|CHURCH|CITY OF|COUNTY|STATE OF)\b/i;
         let assessServiceDown = false;
+        let gatewayDown = false;
 
         const digitsOf = s => String(s ?? '').replace(/\D/g, '');
         const isMarion = p => p && p.county === 'Marion';
@@ -1495,14 +1496,110 @@ svg.leaflet-image-layer.leaflet-interactive path {
                 owner: (a.FULLOWNERNAME || '').replace(/(\s*,)+\s*$/, '').replace(/,(\s*,)+/g, ',').trim() || null,
                 ownerAddress: [a.OWNERADDRESS, a.OWNERADDRESS2, [a.OWNERCITY, ownerState, a.OWNERZIP].filter(Boolean).join(' '), a.OWNERFOREIGNCOUNTRY]
                     .map(s => (s || '').trim()).filter(Boolean).join(', ') || null,
-                ownerState, indyClass: [a.PROPERTY_CLASS, a.PROPERTY_SUB_CLASS_DESCRIPTION].filter(Boolean).join(' · ') || null,
-                neighborhood: a.NEIGHBORHOOD || null, parcelC: a.PARCEL_C || null, stateNumber: a.STATEPARCELNUMBER || null, match
+                ownerState, assessorClass: [a.PROPERTY_CLASS, a.PROPERTY_SUB_CLASS_DESCRIPTION].filter(Boolean).join(' · ') || null,
+                neighborhood: a.NEIGHBORHOOD || null, parcelC: a.PARCEL_C || null, stateNumber: a.STATEPARCELNUMBER || null, match, source: 'indy'
             };
         }
 
-        // Look up assessed values for Marion parcels in batches, matching on state parcel number or local parcel number
+        // Indiana Gateway lookups. Relative path works on GitHub Pages or a local server; opened as a file,
+        // the page reads the same files from the GitHub repo instead.
+        const GATEWAY_BASES = ['data/assessments/', 'https://raw.githubusercontent.com/brady7788/RealEstate/main/data/assessments/'];
+        const GATEWAY_SHARD_CACHE = 300;
+        let gatewayBase = null, gatewayIndex = null, gatewayIndexLoading = null;
+        const gatewayShards = new Map();
+
+        async function fetchGatewayFile(base, path) {
+            const res = await fetch(base + path);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const buf = new Uint8Array(await res.arrayBuffer());
+            // Shards are gzip files; decompress unless the server already did (Content-Encoding: gzip)
+            const text = buf[0] === 0x1f && buf[1] === 0x8b
+                ? await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).text()
+                : new TextDecoder().decode(buf);
+            return JSON.parse(text);
+        }
+
+        function loadGatewayIndex() {
+            if (gatewayIndex) return Promise.resolve(gatewayIndex);
+            if (!gatewayIndexLoading) gatewayIndexLoading = (async () => {
+                for (const base of GATEWAY_BASES) {
+                    if (location.protocol === 'file:' && !/^https?:/.test(base)) continue;
+                    try {
+                        gatewayIndex = await fetchGatewayFile(base, 'index.json');
+                        gatewayBase = base;
+                        gatewayDown = false;
+                        return gatewayIndex;
+                    } catch { /* try the next location */ }
+                }
+                gatewayDown = true;
+                return null;
+            })().finally(() => { gatewayIndexLoading = null; });
+            return gatewayIndexLoading;
+        }
+
+        // Shards hold contiguous ranges of state parcel numbers; index.json lists each shard's first number
+        async function gatewayRecord(county, key) {
+            const starts = county.shards;
+            let lo = 0, hi = starts.length - 1, i = -1;
+            while (lo <= hi) {
+                const mid = (lo + hi) >> 1;
+                if (starts[mid] <= key) { i = mid; lo = mid + 1; } else hi = mid - 1;
+            }
+            if (i < 0) return null;
+            const path = `${county.num}/s${i}.json.gz`;
+            let shard = gatewayShards.get(path);
+            if (!shard) {
+                shard = fetchGatewayFile(gatewayBase, path).catch(err => { gatewayShards.delete(path); throw err; });
+                gatewayShards.set(path, shard);
+                if (gatewayShards.size > GATEWAY_SHARD_CACHE) gatewayShards.delete(gatewayShards.keys().next().value);
+            }
+            return (await shard)[key] || null;
+        }
+
+        function gatewayAssessment(r, county) {
+            const g = Object.fromEntries(gatewayIndex.fields.map((f, i) => [f, r[i]]));
+            const ownerState = (g.ownerState || '').toUpperCase();
+            return {
+                totalAV: g.totalAV, landAV: g.landAV, impAV: g.impAV, owner: g.owner,
+                ownerAddress: [g.ownerStreet, [g.ownerCity, ownerState, g.ownerZip].filter(Boolean).join(' '), g.ownerCountry]
+                    .filter(Boolean).join(', ') || null,
+                ownerState, assessorClass: g.cls ? `${g.cls} · ${classLabel(g.cls)}` : null,
+                deededAcres: g.acres, transferDate: g.transferDate,
+                year: county.assessmentYear ? `${county.assessmentYear} pay ${county.payYear}` : null,
+                match: 'state parcel number', source: 'gateway'
+            };
+        }
+
+        async function enrichFromGateway(parcels) {
+            if (!parcels.length || !(await loadGatewayIndex())) return;
+            await Promise.all(parcels.map(async p => {
+                const fips = (COUNTIES.find(c => c.name === p.county) || {}).fips;
+                const county = gatewayIndex.counties[fips];
+                // 18-digit state parcel number; the layer's parcel_id is often the same number with dashes
+                const keys = [...new Set([p.state_parcel_id, p.parcel_id].map(digitsOf).filter(k => k.length === 18))];
+                if (!county || !keys.length) { p.assess = null; return; }
+                try {
+                    for (const k of keys) {
+                        const r = await gatewayRecord(county, k);
+                        if (r) { p.assess = gatewayAssessment(r, county); return; }
+                    }
+                    p.assess = null;
+                } catch {
+                    gatewayDown = true;
+                    // leave p.assess undefined so a later attempt can retry
+                }
+            }));
+        }
+
         async function enrichAssessments(parcels) {
-            const todo = parcels.filter(p => isMarion(p) && p.assess === undefined);
+            const todo = parcels.filter(p => p.assess === undefined);
+            await enrichFromIndy(todo.filter(isMarion));
+            // Marion parcels the live service didn't match (or couldn't reach) fall back to the Gateway file
+            await enrichFromGateway(todo.filter(p => !p.assess));
+        }
+
+        // Look up assessed values for Marion parcels in batches, matching on state parcel number or local parcel number
+        async function enrichFromIndy(todo) {
             for (let i = 0; i < todo.length; i += AV_BATCH) {
                 const batch = todo.slice(i, i + AV_BATCH);
                 const stateVals = new Set(), localVals = new Set();
@@ -1536,11 +1633,10 @@ svg.leaflet-image-layer.leaflet-interactive path {
             }
         }
 
-        // For the selected parcel: if no parcel-number match, find the Indy parcel at the parcel's location
+        // For the selected parcel; in Marion, if no parcel-number match, find the Indy parcel at the parcel's location
         async function loadAssessmentFor(p) {
-            if (!isMarion(p)) return;
             if (p.assess === undefined) await enrichAssessments([p]);
-            if (p.assess === null && !p.assessLocTried && p.lat != null) {
+            if (isMarion(p) && p.assess === null && !p.assessLocTried && p.lat != null) {
                 p.assessLocTried = true;
                 try {
                     const json = await queryLayer({
@@ -1556,7 +1652,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
         }
 
         function avFilterActive(f) {
-            return f.county === MARION_FIPS && (f.minAV != null || f.maxAV != null);
+            return f.minAV != null || f.maxAV != null;
         }
         function passesAV(p, f) {
             const v = p.assess && p.assess.totalAV;
@@ -1564,18 +1660,6 @@ svg.leaflet-image-layer.leaflet-interactive path {
             if (f.minAV != null && v < f.minAV) return false;
             if (f.maxAV != null && v > f.maxAV) return false;
             return true;
-        }
-
-        // Assessed-value inputs work for Marion County only (the one county connected so far)
-        function updateAvInputs() {
-            const on = document.getElementById('filter-county').value === MARION_FIPS;
-            ['filter-min-av', 'filter-max-av'].forEach(id => {
-                const el = document.getElementById(id);
-                el.disabled = !on;
-                el.placeholder = on ? 'Any' : 'Marion only';
-                el.classList.toggle('cursor-not-allowed', !on);
-            });
-            document.getElementById('av-filter-wrap').classList.toggle('opacity-50', !on);
         }
 
         function renderAssessment(p) {
@@ -1588,15 +1672,16 @@ svg.leaflet-image-layer.leaflet-interactive path {
                     <span class="${cls} px-2 py-0.5 rounded text-[10px] font-bold">${badge}</span>
                 </div>`;
             const muted = 'bg-slate-800 text-slate-400 border border-slate-700';
-            if (!isMarion(p)) {
-                el.innerHTML = heading('Not connected', muted) + `
-                    <p class="text-[11px] text-slate-400">Assessed values and ownership are connected for Marion County so far. For ${escapeHtml(p.county ? p.county + ' County' : 'this county')}, they need that county's assessor data. Sale history and zoning aren't connected for any county yet.</p>`;
-            } else if (p.assess === undefined && !assessServiceDown) {
-                el.innerHTML = heading('Loading…', muted) + `<p class="text-[11px] text-slate-500">Looking up Marion County assessor data…</p>`;
+            const countyLabel = p.county ? p.county + ' County' : 'County';
+            if (p.assess === undefined && !gatewayDown) {
+                el.innerHTML = heading('Loading…', muted) + `<p class="text-[11px] text-slate-500">Looking up ${escapeHtml(countyLabel)} assessor data…</p>`;
             } else if (p.assess === undefined) {
-                el.innerHTML = heading('Unavailable', muted) + `<p class="text-[11px] text-slate-400">Couldn't reach the Indianapolis parcel service (gis.indy.gov). Check your connection; some previews block outside requests.</p>`;
+                el.innerHTML = heading('Unavailable', muted) + `<p class="text-[11px] text-slate-400">Couldn't load the assessor data files${isMarion(p) ? ' or reach the Indianapolis parcel service (gis.indy.gov)' : ''}. Check your connection; some previews block outside requests.</p>`;
             } else if (!p.assess) {
-                el.innerHTML = heading('No match', muted) + `<p class="text-[11px] text-slate-400">No Marion County assessor record matched this parcel's ID or location.</p>`;
+                const hasNumber = [p.state_parcel_id, p.parcel_id].some(v => digitsOf(v).length === 18);
+                el.innerHTML = heading('No match', muted) + `<p class="text-[11px] text-slate-400">${hasNumber
+                    ? `No ${escapeHtml(countyLabel)} assessor record matched this parcel's state parcel number${isMarion(p) ? ' or location' : ''}. It may have been split, combined or renumbered since the 2025 assessment.`
+                    : `This parcel has no 18-digit state parcel number in the IndianaMap layer, so it can't be matched to the ${escapeHtml(countyLabel)} assessor file.`}</p>`;
             } else {
                 const a = p.assess;
                 const row = (k, v, cls = 'text-slate-200') => `<div class="flex justify-between gap-3"><span class="text-slate-400 shrink-0">${k}</span><span class="font-semibold ${cls} text-right">${v}</span></div>`;
@@ -1614,7 +1699,9 @@ svg.leaflet-image-layer.leaflet-interactive path {
                         <div class="pt-2 border-t border-slate-800 space-y-2">
                             ${row('Owner', escapeHtml(a.owner || '—'))}
                             ${row('Mailing Address', escapeHtml(a.ownerAddress || '—'))}
-                            ${a.indyClass ? row('Assessor Class', escapeHtml(a.indyClass)) : ''}
+                            ${a.transferDate ? row('Transferred to Owner', escapeHtml(a.transferDate)) : ''}
+                            ${a.assessorClass ? row('Assessor Class', escapeHtml(a.assessorClass)) : ''}
+                            ${a.deededAcres ? row('Legally Deeded Acreage', `${fmtAcres(a.deededAcres)} ac`) : ''}
                             ${a.neighborhood ? row('Assessor Neighborhood', escapeHtml(a.neighborhood)) : ''}
                         </div>
                     </div>
@@ -1623,7 +1710,9 @@ svg.leaflet-image-layer.leaflet-interactive path {
                     </div>` : ''}
                     ${flags.length ? `<div class="flex flex-wrap gap-1.5">${flags.map(t => `<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/30">${t}</span>`).join('')}</div>
                     <p class="text-[10px] text-slate-500 italic">Ownership indicators only; they don't mean the owner intends to sell.</p>` : ''}
-                    <p class="text-[10px] text-slate-500">Source: City of Indianapolis / Marion County (IndyGIS parcels with Marion County Assessor data, updated nightly). Sale history and zoning aren't connected yet.</p>`;
+                    <p class="text-[10px] text-slate-500">Source: ${a.source === 'indy'
+                        ? 'City of Indianapolis / Marion County (IndyGIS parcels with Marion County Assessor data, updated nightly)'
+                        : `${escapeHtml(countyLabel)} assessor, ${escapeHtml(a.year || '')} Real Property file via Indiana Gateway (DLGF), matched by ${escapeHtml(a.match)}`}. Sale history and zoning aren't connected yet.</p>`;
             }
             lucide.createIcons();
         }
@@ -1724,7 +1813,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
             document.getElementById('det-oid').textContent = p.objectid;
 
             renderAssessment(p);
-            if (isMarion(p) && (p.assess === undefined || (p.assess === null && !p.assessLocTried))) {
+            if (p.assess === undefined || (isMarion(p) && p.assess === null && !p.assessLocTried)) {
                 loadAssessmentFor(p).then(() => {
                     if (selectedParcel !== p) return;
                     renderAssessment(p);
@@ -1881,14 +1970,13 @@ svg.leaflet-image-layer.leaflet-interactive path {
                 let reply;
                 if (/assess|\bav\b|owner|own|mailing|taxes|worth/.test(q) && !/sale|sold|sell|bought|purchase|zoning|zoned/.test(q) && p.assess) {
                     const a = p.assess;
-                    reply = `Marion County assessor record: total assessed value ${b(fmtMoney(a.totalAV))} (land ${b(fmtMoney(a.landAV))}, improvements ${b(fmtMoney(a.impAV))}). Owner: ${b(a.owner || '—')}, mailing address ${b(a.ownerAddress || '—')}. Source: City of Indianapolis / Marion County open data, matched by ${a.match}.`;
-                } else if (/assess|\bav\b|owner|own|mailing|worth/.test(q) && !/sale|sold|sell|bought|purchase|zoning|zoned/.test(q) && isMarion(p)) {
-                    reply = p.assess === null ? 'No Marion County assessor record matched this parcel, so I don\'t have its assessed value or owner.'
-                        : 'The Marion County assessor data is still loading or couldn\'t be reached. Check the Parcel Record tab in a moment.';
+                    const src = a.source === 'indy' ? 'City of Indianapolis / Marion County open data' : `the ${a.year || ''} Real Property file via Indiana Gateway`;
+                    reply = `${escapeHtml(p.county || '')} County assessor record: total assessed value ${b(fmtMoney(a.totalAV))} (land ${b(fmtMoney(a.landAV))}, improvements ${b(fmtMoney(a.impAV))}). Owner: ${b(a.owner || '—')}, mailing address ${b(a.ownerAddress || '—')}${a.transferDate ? `, owner since ${b(a.transferDate)}` : ''}. Source: ${escapeHtml(src)}, matched by ${a.match}.`;
+                } else if (/assess|\bav\b|owner|own|mailing|worth/.test(q) && !/sale|sold|sell|bought|purchase|zoning|zoned/.test(q)) {
+                    reply = p.assess === null ? 'No assessor record matched this parcel, so I don\'t have its assessed value or owner.'
+                        : 'The assessor data is still loading or couldn\'t be reached. Check the Parcel Record tab in a moment.';
                 } else if (/assess|value|\bav\b|price|sale|sold|sell|bought|purchase|owner|own|zoning|zoned/.test(q)) {
-                    reply = isMarion(p)
-                        ? `Sale history and zoning aren't connected yet, so I won't estimate them. Assessed value and owner are on the Parcel Record tab.`
-                        : `That isn't connected for ${b(p.county ? p.county + ' County' : 'this county')} yet. Assessed values and ownership are connected for Marion County so far; sale history and zoning for no county yet, so I won't estimate them.`;
+                    reply = `Sale history and zoning aren't connected yet, so I won't estimate them. Assessed value and owner are on the Parcel Record tab.`;
                 } else if (/acre|size|big|large|area/.test(q)) {
                     reply = `The parcel is ${b(fmtAcres(p.acres) + ' acres')}, calculated from its mapped boundary (${b(Math.round((p.acres || 0) * 43560).toLocaleString() + ' sq ft')}).`;
                 } else if (/class|use|vacant|type/.test(q)) {
