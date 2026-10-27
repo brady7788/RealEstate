@@ -881,6 +881,9 @@ svg.leaflet-image-layer.leaflet-interactive path {
                     <h2 id="detail-address" class="font-bold text-sm text-white truncate">Select a Parcel</h2>
                 </div>
                 <div class="flex items-center gap-1 shrink-0">
+                    <button onclick="generateMemo()" class="memo-btn p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-emerald-400 transition" title="Download Investment Memo (PDF)">
+                        <i data-lucide="file-down" class="w-4 h-4"></i>
+                    </button>
                     <button id="watchlist-btn" onclick="toggleCurrentWatchlist()" class="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-amber-400 transition" title="Save to Watchlist">
                         <i data-lucide="bookmark" class="w-4 h-4"></i>
                     </button>
@@ -1057,6 +1060,10 @@ svg.leaflet-image-layer.leaflet-interactive path {
                                 <span id="calc-result" class="font-mono text-emerald-400 font-bold text-sm">-</span>
                             </div>
                         </div>
+                        <button onclick="generateMemo()" class="memo-btn w-full bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2">
+                            <i data-lucide="file-down" class="w-4 h-4"></i> <span class="memo-label">Download Investment Memo (PDF)</span>
+                        </button>
+                        <p class="text-[10px] text-slate-500">A multi-page memo for investors: site map, measured constraints, comps, residual land value with sensitivity, risks and sources. Uses the inputs above.</p>
                     </div>
                 </div>
 
@@ -2132,16 +2139,18 @@ svg.leaflet-image-layer.leaflet-interactive path {
             };
 
             const parcel = toFt(p.rings);
-            const dist = [], cls = [];
+            const dist = [], cls = [], xs = [], ys = [];
             for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
                 const x = cx(i), y = cy(j);
                 if (!inRings(x, y, parcel)) continue;
+                xs.push(x); ys.push(y);
                 dist.push(distToRings(x, y, parcel));
                 cls.push(floodPolys.some(r => inRings(x, y, r)) ? 'flood'
                     : wetlandPolys.some(r => inRings(x, y, r)) ? 'wetland'
                     : z && slopeAt(i, j) > STEEP_SLOPE ? 'slope' : null);
             }
-            return { n: dist.length, dist, cls, step, failed };
+            // Point positions and the outline (local feet) are kept for the memo's constraint map
+            return { n: dist.length, dist, cls, step, failed, xs, ys, parcel, W, H };
         }
 
         // ---- Development model ----
@@ -2152,16 +2161,20 @@ svg.leaflet-image-layer.leaflet-interactive path {
             const site = selectedParcel._site;
             const on = document.getElementById('calc-constraints').checked;
             // Each sample point is counted under the first constraint it falls in: setback, then flood, wetland, slope
-            const counts = { setback: 0, flood: 0, wetland: 0, slope: 0 };
+            // `env` counts floodplain, wetland and slope wherever they fall, including inside the setback strip,
+            // for the comp-based capacity, which doesn't use this parcel's setbacks
+            const counts = { setback: 0, flood: 0, wetland: 0, slope: 0, env: 0 };
             if (on && site) {
                 const d = val('calc-setback');
                 for (let i = 0; i < site.n; i++) {
+                    if (site.cls[i]) counts.env++;
                     if (site.dist[i] < d) counts.setback++;
                     else if (site.cls[i]) counts[site.cls[i]]++;
                 }
             }
             const perPoint = site && site.n ? gross / site.n : 0;
             const setback = counts.setback * perPoint, flood = counts.flood * perPoint, wetland = counts.wetland * perPoint, slope = counts.slope * perPoint;
+            const env = counts.env * perPoint;
             const remaining = gross - setback - flood - wetland - slope;
             const openSpace = on ? remaining * Math.min(100, val('calc-openspace')) / 100 : 0;
             const net = Math.max(0, remaining - openSpace);
@@ -2169,7 +2182,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
             const revenue = units * val('calc-rev');
             const rlv = revenue - units * val('calc-cost') - revenue * val('calc-profit') / 100 - val('calc-site');
             const deduct = gross > 0 ? Math.round((1 - net / gross) * 100) : 0;
-            return { gross, net, units, rlv, density: val('calc-density'), deduct, setback, flood, wetland, slope, openSpace };
+            return { gross, net, units, rlv, density: val('calc-density'), deduct, setback, flood, wetland, slope, env, openSpace };
         }
 
         function calculateResidual() {
@@ -2455,7 +2468,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
         // The range is the 95% confidence interval of the median (median ± 1.58 × IQR / √n), capped at ±15%.
         const CAPACITY_MAX_SPREAD = 0.15;
         function compCapacity(st, m) {
-            const acres = Math.max(0, m.gross - m.flood - m.wetland - m.slope);
+            const acres = Math.max(0, m.gross - m.env);
             const half = Math.min(1.58 * (st.p75 - st.p25) / Math.sqrt(st.n), CAPACITY_MAX_SPREAD * st.med);
             return { acres, lo: Math.round((st.med - half) * acres), mid: Math.round(st.med * acres), hi: Math.round((st.med + half) * acres) };
         }
@@ -2575,7 +2588,10 @@ svg.leaflet-image-layer.leaflet-interactive path {
             const st = compStats(r), m = computeModel();
             if (!m || st.n < MIN_COMPS || m.net <= 0) return;
             const c = compCapacity(st, m);
-            document.getElementById('calc-density').value = (st.med * c.acres / m.net).toFixed(1);
+            // On slivers where setbacks take most of the land, the conversion would pack the comp-based units onto a
+            // few net acres; cap it at 1.5× the densest comparable
+            const maxNet = 1.5 * Math.max(...st.used.map(u => u.density));
+            document.getElementById('calc-density').value = Math.min(st.med * c.acres / m.net, maxNet).toFixed(1);
             densitySource = 'comps';
             updateDensityBadge(`Comp median ${st.med.toFixed(1)}/acre gross, converted to net buildable acres at the setbacks and open space in effect when comps loaded.`);
         }
@@ -2599,6 +2615,360 @@ svg.leaflet-image-layer.leaflet-interactive path {
             document.getElementById('calc-density').value = DEV_MODES[devMode].defaults['calc-density'];
             densitySource = 'default';
             updateDensityBadge();
+        }
+
+        // ---- Investment memo (PDF) ----
+        // Built in the browser with jsPDF, loaded on first use. Uses the same model, measured site and comps as the
+        // Development Engine, so the memo matches what's on screen. Standard PDF fonts only cover Latin-1, hence "-" for minus.
+        const MEMO_LIBS = [
+            'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+            'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js'
+        ];
+        const MEMO_C = { ink: [15, 23, 42], muted: [100, 116, 139], line: [226, 232, 240], accent: [5, 150, 105], band: [15, 23, 42], soft: [241, 245, 249], zebra: [248, 250, 252] };
+        const MEMO_MAP = {
+            buildable: { color: [167, 243, 208], label: 'Buildable' }, setback: { color: [253, 230, 138], label: 'Setback' },
+            flood: { color: [147, 197, 253], label: 'FEMA floodplain' }, wetland: { color: [94, 234, 212], label: 'Wetland / water' },
+            slope: { color: [253, 186, 116], label: 'Slope > 15%' }
+        };
+        const MEMO_SENS_REV = [-0.10, -0.05, 0, 0.05, 0.10];
+        const MEMO_SENS_COST = [-0.10, 0, 0.10];
+        let memoLibs = null;
+
+        function loadMemoLibs() {
+            if (window.jspdf && window.jspdf.jsPDF.API.autoTable) return Promise.resolve();
+            memoLibs = memoLibs || MEMO_LIBS.reduce((chain, src) => chain.then(() => new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = src; s.onload = resolve; s.onerror = () => reject(new Error(`couldn't load ${src}`));
+                document.head.appendChild(s);
+            })), Promise.resolve()).catch(err => { memoLibs = null; throw err; });
+            return memoLibs;
+        }
+
+        async function generateMemo() {
+            const p = selectedParcel;
+            if (!p) return;
+            if (!p.rings || p.acres == null) { alert('This parcel has no mapped boundary, so a memo can\'t be built for it.'); return; }
+            const btns = document.querySelectorAll('.memo-btn');
+            const busy = label => btns.forEach(b => {
+                b.disabled = !!label; b.style.opacity = label ? 0.6 : '';
+                const l = b.querySelector('.memo-label'); if (l) l.textContent = label || 'Download Investment Memo (PDF)';
+            });
+            try {
+                busy('Measuring site and finding comps…');
+                const key = `${p.objectid}|${devMode}`;
+                if (!(lastComps && lastComps.parcel === p && lastComps.mode === devMode && lastComps.result)) loadComps();
+                loadSiteConstraints(p);
+                const [, , comps] = await Promise.all([
+                    loadMemoLibs(), siteCache.get(p.objectid) || p._site, compCache.get(key),
+                    p.assess === undefined ? enrichAssessments([p]) : null
+                ]);
+                await new Promise(r => setTimeout(r, 0)); // let the panel's own handlers (density from comps) run first
+                if (selectedParcel !== p) return;
+                calculateResidual();
+                busy('Building PDF…');
+                const doc = buildMemo(p, comps);
+                const slug = addressLine(p).replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'parcel';
+                doc.save(`LandLens-Memo-${slug}.pdf`);
+            } catch (err) {
+                alert(`Couldn't build the memo: ${err.message}`);
+            } finally {
+                busy(null);
+            }
+        }
+
+        function buildMemo(p, comps) {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+            const PW = 612, PH = 792, M = 50, CW = PW - 2 * M, C = MEMO_C;
+            const cfg = DEV_MODES[devMode], site = p._site, a = p.assess || null;
+            const m = computeModel(), st = compStats(comps && !comps.error ? comps : null);
+            const hasComps = st.n >= MIN_COMPS, cap = hasComps ? compCapacity(st, m) : null;
+            const val = id => parseFloat(document.getElementById(id).value) || 0;
+            const rev = val('calc-rev'), cost = val('calc-cost'), profit = val('calc-profit') / 100, siteCost = val('calc-site');
+            const setbackFt = val('calc-setback'), openPct = val('calc-openspace');
+            const constraintsOn = document.getElementById('calc-constraints').checked;
+            const rlvAt = (units, r = rev, c = cost) => units * r - units * c - units * r * profit - siteCost;
+
+            const money = v => v == null || !isFinite(v) ? '-' : (v < 0 ? '-$' : '$') + Math.round(Math.abs(v)).toLocaleString('en-US');
+            const moneyShort = v => !isFinite(v) ? '-' : Math.abs(v) >= 1e6 ? (v < 0 ? '-$' : '$') + (Math.abs(v) / 1e6).toFixed(2) + 'M' : money(v);
+            const num = v => Math.round(v).toLocaleString('en-US');
+            const ac = v => `${fmtAcres(Math.max(0, v))} ac`;
+            const pctOf = v => m.gross ? `${(v / m.gross * 100).toFixed(1)}%` : '-';
+            const label = s => s.replace(/\s*\(\$\)$/, '');
+            const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+            const modeName = devMode === 'apartment' ? 'Apartment Development' : 'For-Sale Neighborhood Development';
+            const failed = name => site && site.failed.includes(name);
+            const township = p.township ? p.township.replace(/\s+township$/i, '').toLowerCase().replace(/\b\w/g, ch => ch.toUpperCase()) : null;
+            const level = st.n >= 6 ? 'High' : hasComps ? 'Medium' : 'Low';
+
+            let y = M;
+            const font = (size, bold, color) => { doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setFontSize(size); doc.setTextColor(...(color || C.ink)); };
+            const ensure = h => { if (y + h > PH - 64) { doc.addPage(); y = M; } };
+            const para = (s, o = {}) => {
+                const size = o.size || 9.5, lh = size * 1.4;
+                font(size, o.bold, o.color);
+                const lines = doc.splitTextToSize(s, o.width || CW);
+                ensure(lines.length * lh);
+                doc.text(lines, o.x || M, y + size * 0.8);
+                y += lines.length * lh + (o.after != null ? o.after : 6);
+            };
+            const bullets = items => items.forEach(s => {
+                font(9.5);
+                const lines = doc.splitTextToSize(s, CW - 14);
+                ensure(lines.length * 13.3);
+                doc.setFillColor(...C.accent); doc.circle(M + 3, y + 4.5, 1.6, 'F');
+                doc.text(lines, M + 12, y + 7.6);
+                y += lines.length * 13.3 + 4;
+            });
+            // `need` keeps a heading together with the start of what follows it
+            const heading = (s, need = 60) => {
+                ensure(need);
+                y += 10;
+                doc.setFillColor(...C.accent); doc.rect(M, y, 3, 13, 'F');
+                font(11, true); doc.text(s.toUpperCase(), M + 10, y + 10.5);
+                y += 22;
+            };
+            const table = (head, body, o = {}) => {
+                doc.autoTable({
+                    startY: y, head: [head], body, margin: { left: M, right: M, bottom: 70 }, theme: 'grid',
+                    styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 4, lineColor: C.line, lineWidth: 0.5, textColor: C.ink, overflow: 'linebreak' },
+                    headStyles: { fillColor: C.band, textColor: 255, fontStyle: 'bold' },
+                    alternateRowStyles: { fillColor: C.zebra }, ...o
+                });
+                y = doc.lastAutoTable.finalY + 12;
+            };
+
+            // ---- Page 1: header, key figures, summary, site map and parcel facts ----
+            doc.setFillColor(...C.band); doc.rect(0, 0, PW, 118, 'F');
+            doc.setFillColor(...C.accent); doc.rect(0, 118, PW, 3, 'F');
+            font(8, true, [110, 231, 183]); doc.text('LANDLENS INDIANA  |  DEVELOPMENT INVESTMENT MEMO', M, 38);
+            font(19, true, [255, 255, 255]);
+            const title = doc.splitTextToSize(addressLine(p), CW);
+            doc.text(title.slice(0, 2), M, 62);
+            font(9, false, [203, 213, 225]);
+            doc.text(`${p.county || ''} County, Indiana   |   Parcel ${p.parcel_id || p.state_parcel_id || '-'}   |   ${modeName}   |   ${today}`, M, title.length > 1 ? 104 : 86);
+            y = 140;
+
+            const kpis = [
+                ['Gross Site', ac(m.gross), 'From mapped boundary'],
+                ['Net Buildable', ac(m.net), `${m.deduct}% unbuildable`],
+                ['Development Capacity', hasComps ? `${num(cap.lo)}-${num(cap.hi)}` : num(m.units), hasComps ? `${cfg.units}, comp-based (${level})` : `${cfg.units}, modeled`],
+                ['Residual Land Value', moneyShort(m.rlv), m.units ? `${money(m.rlv / m.units)} per ${cfg.unit}` : '']
+            ];
+            const kw = (CW - 3 * 10) / 4;
+            kpis.forEach(([k, v, s], i) => {
+                const x = M + i * (kw + 10);
+                doc.setFillColor(...C.soft); doc.roundedRect(x, y, kw, 62, 4, 4, 'F');
+                font(7, true, C.muted); doc.text(k.toUpperCase(), x + 9, y + 15);
+                font(15, true, i === 3 && m.rlv < 0 ? [190, 18, 60] : C.ink); doc.text(v, x + 9, y + 36);
+                font(7.5, false, C.muted); doc.text(doc.splitTextToSize(s, kw - 16).slice(0, 1), x + 9, y + 51);
+            });
+            y += 80;
+
+            heading('Executive Summary');
+            const summary = [];
+            summary.push(`${addressLine(p)} is a ${fmtAcres(m.gross)}-acre parcel in ${p.county || ''} County${township ? `, ${township} Township` : ''}, classified ${p.classCode ? `${p.classCode} (${classLabel(p.classCode)})` : 'without a DLGF property class'}.`);
+            if (site && constraintsOn) {
+                const env = [m.flood > 0.005 && `${fmtAcres(m.flood)} acres of FEMA 100-year floodplain`, m.wetland > 0.005 && `${fmtAcres(m.wetland)} acres of mapped wetlands`, m.slope > 0.005 && `${fmtAcres(m.slope)} acres of slopes over 15%`].filter(Boolean);
+                summary.push(`Measured constraints${env.length ? ` (${env.join(', ')})` : ' (no mapped floodplain, wetlands or steep slopes)'}, ${setbackFt}-foot setbacks and ${openPct}% zoning open space remove ${fmtAcres(m.gross - m.net)} acres (${m.deduct}%), leaving ${fmtAcres(m.net)} net buildable acres.`);
+            }
+            summary.push(hasComps
+                ? `${st.n} comparable ${devMode === 'apartment' ? 'apartment properties' : 'neighborhoods built since 2013'} within ${comps.miles} miles have a weighted median density of ${st.med.toFixed(1)} ${cfg.units} per gross acre, indicating capacity of ${num(cap.lo)}-${num(cap.hi)} ${cfg.units} on the ${fmtAcres(cap.acres)} acres outside floodplain, wetlands and steep slopes (comp confidence: ${level}).`
+                : `Fewer than ${MIN_COMPS} usable comparables were found nearby, so capacity rests on the modeled density of ${m.density} ${cfg.units} per net acre.`);
+            summary.push(m.units
+                ? `At a modeled program of ${num(m.units)} ${cfg.units} with ${label(cfg.revLabel).toLowerCase()} of ${money(rev)} and ${label(cfg.costLabel).toLowerCase()} of ${money(cost)}, the residual land value is ${money(m.rlv)}: ${money(m.rlv / m.units)} per ${cfg.unit} and ${money(m.rlv / m.gross)} per gross acre.`
+                  + (m.rlv <= 0 ? ' The program does not support a positive land value at these inputs; see the sensitivity analysis.' : '')
+                : 'The modeled program yields no units at these inputs.');
+            if (a && a.totalAV > 0) summary.push(`The ${a.year ? a.year + ' ' : ''}assessed value is ${money(a.totalAV)}${m.rlv > 0 ? `, so the residual land value is ${(m.rlv / a.totalAV).toFixed(1)}x assessed value` : ''}.`);
+            para(summary.join(' '), { after: 10 });
+
+            heading('Site');
+            ensure(250);
+            const mapY = y, mapW = 250, mapH = 220;
+            drawMemoMap(doc, site, M, mapY, mapW, mapH, constraintsOn ? setbackFt : 0);
+            const facts = [
+                ['Parcel ID', p.parcel_id || '-'], ['State parcel ID', p.state_parcel_id || '-'],
+                ['County / township', `${p.county || '-'}${township ? ' / ' + township : ''}`],
+                ['Property class', p.classCode ? `${p.classCode} - ${classLabel(p.classCode)}` : '-'],
+                ['Gross area', `${fmtAcres(m.gross)} ac (${num(m.gross * 43560)} sq ft)`],
+                ['School district', p.school || '-'], ['Tax district', p.taxDistrict || '-'],
+                ['Coordinates', p.lat != null ? `${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}` : '-']
+            ];
+            if (a) {
+                if (a.owner) facts.push(['Owner of record', a.owner]);
+                if (a.totalAV != null) facts.push(['Assessed value', `${money(a.totalAV)}${a.landAV != null ? ` (land ${money(a.landAV)})` : ''}`]);
+                if (a.transferDate) facts.push(['Owner since', a.transferDate]);
+            }
+            doc.autoTable({
+                startY: mapY, body: facts, margin: { left: M + mapW + 14, right: M }, theme: 'plain',
+                styles: { font: 'helvetica', fontSize: 8, cellPadding: 3, textColor: C.ink, overflow: 'linebreak' },
+                columnStyles: { 0: { textColor: C.muted, cellWidth: 82 } },
+                didParseCell: d => { if (d.row.index % 2 === 0) d.cell.styles.fillColor = C.zebra; }
+            });
+            y = Math.max(mapY + mapH + 34, doc.lastAutoTable.finalY + 12);
+
+            // ---- Constraints ----
+            heading('Site Constraints', 230);
+            const nA = name => failed(name) ? 'n/a (service unavailable)' : null;
+            table(['Constraint', 'Basis / source', 'Acres', '% of gross'], [
+                ['Setbacks', `${setbackFt} ft strip inside the parcel boundary (adjustable)`, ac(m.setback), pctOf(m.setback)],
+                ['FEMA 100-year floodplain', 'FEMA National Flood Hazard Layer, Special Flood Hazard Area', nA('FEMA floodplain') || ac(m.flood), nA('FEMA floodplain') ? '-' : pctOf(m.flood)],
+                ['Wetlands & water', 'USFWS National Wetlands Inventory', nA('NWI wetlands') || ac(m.wetland), nA('NWI wetlands') ? '-' : pctOf(m.wetland)],
+                ['Steep slopes', 'USGS 3DEP 1 m elevation, grade over 15%', nA('USGS elevation') || ac(m.slope), nA('USGS elevation') ? '-' : pctOf(m.slope)],
+                ['Zoning open space', `${openPct}% of the land remaining (adjustable)`, ac(m.openSpace), pctOf(m.openSpace)],
+                [{ content: 'Total unbuildable', styles: { fontStyle: 'bold' } }, '', { content: ac(m.gross - m.net), styles: { fontStyle: 'bold' } }, { content: `${m.deduct}%`, styles: { fontStyle: 'bold' } }],
+                [{ content: 'Net buildable area', styles: { fontStyle: 'bold', textColor: C.accent } }, '', { content: ac(m.net), styles: { fontStyle: 'bold', textColor: C.accent } }, { content: pctOf(m.net), styles: { fontStyle: 'bold', textColor: C.accent } }]
+            ], { columnStyles: { 2: { halign: 'right', cellWidth: 60 }, 3: { halign: 'right', cellWidth: 60 } } });
+            if (!constraintsOn) para('Note: "Subtract Unbuildable Land" was switched off in the model, so no deductions are applied above.', { size: 8.5, color: C.muted });
+            if (site) para(`Measured on ${num(site.n)} sample points about ${Math.round(site.step)} ft apart across the parcel. Each point is counted once, in the order listed, so overlapping constraints are not double-counted.`, { size: 8.5, color: C.muted });
+
+            // ---- Capacity and comps ----
+            heading('Development Capacity', 200);
+            const capRows = [['Development type', modeName], ['Modeled program', `${num(m.units)} ${cfg.units} at ${m.density} per net buildable acre`]];
+            if (hasComps) capRows.push(
+                ['Comparables used', `${st.n} within ${comps.miles} miles (confidence: ${level})`],
+                ['Weighted median density', `${st.med.toFixed(1)} ${cfg.units} per gross acre`],
+                ['Middle half of comps', `${st.p25.toFixed(1)}-${st.p75.toFixed(1)} ${cfg.units} per gross acre`],
+                ['Outliers excluded', st.outliers.length ? st.outliers.map(c => c.density.toFixed(1)).join(', ') + ' per acre' : 'None'],
+                ['Comp-based capacity', `${num(cap.lo)}-${num(cap.hi)} ${cfg.units} (median ${num(cap.mid)}) on ${fmtAcres(cap.acres)} ac`]);
+            else capRows.push(['Comparables', comps && comps.error ? comps.error : `Only ${st.n} usable within the search radius`]);
+            table(['Measure', 'Value'], capRows, { columnStyles: { 0: { cellWidth: 150, textColor: C.muted } } });
+            if (hasComps) para(`Comp densities are per gross acre, so they already reflect the comparables' own roads, setbacks and open space; they are applied to this parcel's land outside floodplain, wetlands and steep slopes. Closer comparables carry more weight. The capacity range is the 95% confidence interval of the median density, capped at +/-${CAPACITY_MAX_SPREAD * 100}%.`, { size: 8.5, color: C.muted });
+
+            if (hasComps) {
+                heading('Comparable Developments', 140);
+                const used = [...st.used].sort((x, z) => x.miles - z.miles).slice(0, 15);
+                table(devMode === 'apartment' ? ['Property', 'Distance', 'Site', 'Units', 'Density', 'Unit count from'] : ['Tract', 'Distance', 'Site', 'Homes + lots', 'Density', 'Basis'],
+                    used.map((c, i) => devMode === 'apartment'
+                        ? [c.label, `${c.miles.toFixed(1)} mi`, ac(c.acres), num(c.units), `${c.density.toFixed(1)}/ac`, c.source]
+                        : [`Tract ${i + 1}`,`${c.miles.toFixed(1)} mi`, ac(c.acres), `${c.homes} + ${c.lots}`, `${c.density.toFixed(1)}/ac`, 'One parcel in 2013, subdivided by 2025']),
+                    { columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } } });
+                if (st.used.length > used.length) para(`Showing the ${used.length} closest of ${st.used.length} comparables.`, { size: 8.5, color: C.muted });
+            }
+
+            // ---- Pro forma ----
+            heading('Residual Land Value', 270);
+            const revenue = m.units * rev, costs = m.units * cost, devProfit = revenue * profit;
+            table(['Line item', 'Basis', 'Amount'], [
+                [`${cfg.units[0].toUpperCase() + cfg.units.slice(1)}`, `${fmtAcres(m.net)} net ac x ${m.density} per acre`, num(m.units)],
+                ['Gross revenue', `${num(m.units)} x ${money(rev)} (${label(cfg.revLabel).toLowerCase()})`, money(revenue)],
+                ['Less: development cost', `${num(m.units)} x ${money(cost)} (${label(cfg.costLabel).toLowerCase()})`, money(-costs)],
+                ['Less: developer profit', `${(profit * 100).toFixed(0)}% of revenue`, money(-devProfit)],
+                ['Less: site prep & soft costs', 'Lump sum', money(-siteCost)],
+                [{ content: 'Residual land value', styles: { fontStyle: 'bold' } }, 'Maximum supportable land price', { content: money(m.rlv), styles: { fontStyle: 'bold', textColor: m.rlv < 0 ? [190, 18, 60] : C.accent } }],
+                ['Per ' + cfg.unit, '', m.units ? money(m.rlv / m.units) : '-'],
+                ['Per gross acre', '', money(m.rlv / m.gross)],
+                ['Per net buildable acre', '', m.net >= 0.1 ? money(m.rlv / m.net) : '-']
+            ], { columnStyles: { 2: { halign: 'right', cellWidth: 100 } } });
+
+            heading('Sensitivity', 130);
+            para(`Residual land value as ${label(cfg.revLabel).toLowerCase()} (columns) and ${label(cfg.costLabel).toLowerCase()} (rows) change, holding ${num(m.units)} ${cfg.units}.`, { size: 8.5, color: C.muted });
+            const sign = d => d === 0 ? 'Base' : `${d > 0 ? '+' : '-'}${Math.abs(d * 100)}%`;
+            table(['Cost \\ Revenue', ...MEMO_SENS_REV.map(d => `${sign(d)}  ${money(rev * (1 + d))}`)],
+                MEMO_SENS_COST.map(dc => [`${sign(dc)}  ${money(cost * (1 + dc))}`, ...MEMO_SENS_REV.map(dr => {
+                    const v = rlvAt(m.units, rev * (1 + dr), cost * (1 + dc));
+                    return { content: moneyShort(v), styles: { halign: 'right', textColor: v < 0 ? [190, 18, 60] : C.ink, fontStyle: dr === 0 && dc === 0 ? 'bold' : 'normal' } };
+                })]), { styles: { font: 'helvetica', fontSize: 8, cellPadding: 4, lineColor: C.line, lineWidth: 0.5, textColor: C.ink } });
+            if (hasComps) {
+                para('Residual land value at the comp-based capacity range, at base revenue and cost:', { size: 8.5, color: C.muted });
+                table(['Scenario', cfg.units[0].toUpperCase() + cfg.units.slice(1), 'Residual land value', 'Per ' + cfg.unit],
+                    [['Low', cap.lo], ['Median', cap.mid], ['High', cap.hi]].map(([k, u]) => [k, num(u), money(rlvAt(u)), u ? money(rlvAt(u) / u) : '-']),
+                    { columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' } } });
+            }
+
+            // ---- Risks, sources, disclaimer ----
+            heading('Key Risks & Due Diligence', 120);
+            const risks = [];
+            if (m.net < 0.25 * m.gross) risks.push(`Buildable area: only ${fmtAcres(m.net)} of ${fmtAcres(m.gross)} acres (${(m.net / m.gross * 100).toFixed(0)}%) are buildable after constraints, which may not support a viable project.`);
+            risks.push('Zoning: confirm the zoning district, permitted density, setbacks and open-space requirements with the local planning office. A rezoning or variance may be needed for this program.');
+            if (m.flood > 0.005) risks.push(`Floodplain: ${fmtAcres(m.flood)} acres fall in a FEMA Special Flood Hazard Area. Confirm with a survey and elevation data; development there typically needs floodplain permits and flood insurance.`);
+            if (m.wetland > 0.005) risks.push(`Wetlands: ${fmtAcres(m.wetland)} acres are mapped by the National Wetlands Inventory. NWI is not a jurisdictional delineation; a wetland delineation and possible USACE / IDEM permits are needed.`);
+            if (m.slope > 0.005) risks.push(`Topography: ${fmtAcres(m.slope)} acres exceed 15% grade, which adds grading and retaining-wall cost.`);
+            ['FEMA floodplain', 'NWI wetlands', 'USGS elevation'].filter(failed).forEach(n => risks.push(`${n} data could not be reached when this memo was generated, so that constraint is not reflected above.`));
+            if (!hasComps) risks.push('Comparables: fewer than three usable comparables were found, so capacity relies on the modeled density alone.');
+            else if (level !== 'High') risks.push(`Comparables: only ${st.n} usable comparables were found; treat the capacity range as indicative.`);
+            risks.push('Utilities and access: confirm sanitary sewer and water capacity, road frontage and access permits.');
+            risks.push('Environmental: commission a Phase I Environmental Site Assessment before acquisition.');
+            risks.push(`Market inputs: ${label(cfg.revLabel).toLowerCase()}, ${label(cfg.costLabel).toLowerCase()}, profit margin and site costs are user inputs; verify with local brokers, appraisers and contractors.`);
+            bullets(risks);
+
+            heading('Data Sources & Methodology', 150);
+            bullets([
+                'Parcel boundaries, classes and locations: IndianaMap statewide parcel layer (Indiana Geographic Information Office).',
+                'Assessed values and owners: county assessor data via Indiana Gateway (DLGF); Marion County also from data.indy.gov.',
+                'Floodplain: FEMA National Flood Hazard Layer. Wetlands: U.S. Fish & Wildlife Service National Wetlands Inventory. Slope: USGS 3D Elevation Program, 1 m.',
+                devMode === 'apartment'
+                    ? 'Apartment comparables: DLGF apartment classes 401-403 of similar size nearby; units from IndianaMap address points or building footprints.'
+                    : 'Neighborhood comparables: tracts that were a single parcel in IndianaMap\'s 2013 layer and hold residential lots in 2025.'
+            ]);
+            y += 4;
+            para('This memo is a screening-level analysis generated from public data and the user\'s model inputs on the date shown. It is not an appraisal, survey, environmental assessment, legal opinion or offer, and should not be relied on as the sole basis for an investment decision.', { size: 7.5, color: C.muted });
+
+            // ---- Footer on every page ----
+            const pages = doc.getNumberOfPages();
+            for (let i = 1; i <= pages; i++) {
+                doc.setPage(i);
+                doc.setDrawColor(...C.line); doc.setLineWidth(0.5); doc.line(M, PH - 42, PW - M, PH - 42);
+                font(7, false, C.muted);
+                doc.text(doc.splitTextToSize(`LandLens Indiana  |  ${addressLine(p)}`, CW - 80)[0], M, PH - 30);
+                doc.text(`Page ${i} of ${pages}`, PW - M, PH - 30, { align: 'right' });
+                doc.text('Screening analysis from public data. Not an appraisal.', M, PH - 20);
+            }
+            return doc;
+        }
+
+        // Constraint map: each sample point drawn as a cell coloured by what it counts as, with the parcel outline,
+        // a north arrow, scale bar and legend
+        function drawMemoMap(doc, site, x, y, w, h, setbackFt) {
+            doc.setFillColor(...MEMO_C.soft); doc.rect(x, y, w, h, 'F');
+            if (!site || !site.n) {
+                doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...MEMO_C.muted);
+                doc.text('Site measurement unavailable', x + w / 2, y + h / 2, { align: 'center' });
+                return;
+            }
+            // Inner drawing area leaves room for the north arrow (top) and scale bar (bottom)
+            const ix = x + 10, iy = y + 28, iw = w - 20, ih = h - 50;
+            const s = Math.min(iw / site.W, ih / site.H);
+            const ox = ix + (iw - site.W * s) / 2, oy = iy + (ih - site.H * s) / 2;
+            const X = fx => ox + fx * s, Y = fy => oy + (site.H - fy) * s;
+            const cell = site.step * s + 0.25;
+            // Clip the cells to the parcel so edge cells don't spill past the outline
+            doc.saveGraphicsState();
+            site.parcel.forEach(ring => {
+                doc.moveTo(X(ring[0][0]), Y(ring[0][1]));
+                ring.slice(1).forEach(([px, py]) => doc.lineTo(X(px), Y(py)));
+                doc.close();
+            });
+            doc.clipEvenOdd(); doc.discardPath();
+            for (let i = 0; i < site.n; i++) {
+                const cat = site.dist[i] < setbackFt ? 'setback' : site.cls[i] || 'buildable';
+                doc.setFillColor(...MEMO_MAP[cat].color);
+                doc.rect(X(site.xs[i]) - cell / 2, Y(site.ys[i]) - cell / 2, cell, cell, 'F');
+            }
+            doc.restoreGraphicsState();
+            doc.setDrawColor(...MEMO_C.ink); doc.setLineWidth(1.2);
+            site.parcel.forEach(ring => {
+                for (let i = 0; i < ring.length - 1; i++) doc.line(X(ring[i][0]), Y(ring[i][1]), X(ring[i + 1][0]), Y(ring[i + 1][1]));
+            });
+            // North arrow
+            const nx = x + w - 14, ny = y + 6;
+            doc.setFillColor(...MEMO_C.ink); doc.triangle(nx, ny, nx - 4, ny + 10, nx + 4, ny + 10, 'F');
+            doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...MEMO_C.ink); doc.text('N', nx, ny + 18, { align: 'center' });
+            // Scale bar: a round length close to a quarter of the map width
+            const target = w * 0.25 / s;
+            const len = [50, 100, 200, 250, 500, 1000, 2000, 2500, 5000].reduce((b, v) => Math.abs(v - target) < Math.abs(b - target) ? v : b);
+            const sx = x + 8, sy = y + h - 10;
+            doc.setLineWidth(1.5); doc.line(sx, sy, sx + len * s, sy);
+            doc.setLineWidth(0.8); doc.line(sx, sy - 3, sx, sy + 1); doc.line(sx + len * s, sy - 3, sx + len * s, sy + 1);
+            doc.setFont('helvetica', 'normal'); doc.text(`${len.toLocaleString('en-US')} ft`, sx + len * s + 4, sy + 2.5);
+            // Legend under the map, only for categories present
+            const present = new Set(Array.from({ length: site.n }, (_, i) => site.dist[i] < setbackFt ? 'setback' : site.cls[i] || 'buildable'));
+            let lx = x;
+            Object.entries(MEMO_MAP).filter(([k]) => present.has(k)).forEach(([, v]) => {
+                doc.setFillColor(...v.color); doc.rect(lx, y + h + 7, 8, 8, 'F');
+                doc.setFontSize(7); doc.setTextColor(...MEMO_C.muted); doc.text(v.label, lx + 11, y + h + 13.5);
+                lx += 16 + doc.getTextWidth(v.label);
+            });
         }
 
         // ---- Watchlist (saved in this browser) ----
