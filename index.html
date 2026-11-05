@@ -1463,6 +1463,48 @@ svg.leaflet-image-layer.leaflet-interactive path {
                 `Estimated at ${d.perAcre} ${d.label} per gross acre. Open a parcel for its measured capacity.`;
         }
 
+        // ---- Address search ----
+        // Counties mostly abbreviate street types and directions (RD, S) but about 5% spell them out, and people type
+        // city, state and ZIP after the street. So a typed address is reduced to its house number and the core words of
+        // the street name, which match however the county wrote the rest.
+        const STREET_TYPES = {
+            ROAD: 'RD', STREET: 'ST', AVENUE: 'AVE', AV: 'AVE', DRIVE: 'DR', BOULEVARD: 'BLVD', LANE: 'LN', COURT: 'CT',
+            CIRCLE: 'CIR', PLACE: 'PL', PARKWAY: 'PKWY', HIGHWAY: 'HWY', TERRACE: 'TER', TRAIL: 'TRL', PIKE: 'PIKE',
+            WAY: 'WAY', SQUARE: 'SQ', CROSSING: 'XING', EXPRESSWAY: 'EXPY', RUN: 'RUN', PASS: 'PASS', POINT: 'PT'
+        };
+        const STREET_TYPE_ABBRS = new Set(Object.values(STREET_TYPES).concat(['RD', 'ST', 'AVE', 'DR', 'LN', 'CT', 'CIR', 'PL', 'BLVD']));
+        const DIRECTIONS = { NORTH: 'N', SOUTH: 'S', EAST: 'E', WEST: 'W', NORTHEAST: 'NE', NORTHWEST: 'NW', SOUTHEAST: 'SE', SOUTHWEST: 'SW' };
+        const DIRECTION_ABBRS = new Set(Object.values(DIRECTIONS));
+
+        // Upper case, periods and '#' dropped, street types and directions abbreviated
+        function normalizeAddress(s) {
+            return String(s || '').toUpperCase().replace(/[.#]/g, '').replace(/\s+/g, ' ').trim().split(' ')
+                .map(w => STREET_TYPES[w] || DIRECTIONS[w] || w).join(' ');
+        }
+
+        // { num, core, street } for an address like "7630 Mann Road, Indianapolis, IN 46221", or null when the text
+        // doesn't start with a house number (a street name, city, ZIP or parcel ID)
+        function parseAddressQuery(text) {
+            const words = normalizeAddress(String(text).split(',')[0]).split(' ').filter(Boolean);
+            if (!/^\d+[A-Z]?$/.test(words[0] || '') || words.length < 2) return null;
+            const num = words[0];
+            let rest = words.slice(1);
+            // Without commas, drop a trailing ZIP and state, then anything after the street type (city, unit)
+            while (rest.length > 1 && /^(\d{5}(-\d{4})?|IN|INDIANA)$/.test(rest[rest.length - 1])) rest.pop();
+            const typeAt = rest.findIndex((w, i) => i > 0 && STREET_TYPE_ABBRS.has(w));
+            if (typeAt > 0) rest = rest.slice(0, typeAt + (DIRECTION_ABBRS.has(rest[typeAt + 1]) ? 2 : 1));
+            const street = rest.join(' ');
+            const core = rest.filter((w, i) => !(i === 0 && DIRECTION_ABBRS.has(w)) && i !== typeAt && !(i === typeAt + 1 && DIRECTION_ABBRS.has(w))).join(' ');
+            return core ? { num, core, street: `${num} ${street}` } : null;
+        }
+
+        // 0 for the address typed (however the county spelled it), 1 for the same number and street name, 2 otherwise
+        function addressMatchRank(p, q) {
+            if (!q) return 0;
+            const a = normalizeAddress(p.rawAddress || p.address);
+            return a === q.street ? 0 : a.startsWith(q.num + ' ') && a.includes(q.core) ? 1 : 2;
+        }
+
         function getFilters() {
             const num = id => { const v = parseFloat(document.getElementById(id).value); return isNaN(v) ? null : v; };
             const f = {
@@ -1482,6 +1524,12 @@ svg.leaflet-image-layer.leaflet-interactive path {
             const d = SEARCH_DENSITY[unitsType()].perAcre;
             if (f.minUnits != null) f.minAcres = Math.max(f.minAcres || 0, f.minUnits / d);
             if (f.maxUnits != null) f.maxAcres = Math.min(f.maxAcres != null ? f.maxAcres : Infinity, (f.maxUnits + 1) / d);
+            // Looking up a specific address or parcel shouldn't be blocked by filters meant for browsing. The county
+            // still applies first; runSearch widens to all of Indiana when nothing matches there.
+            if (f.text) {
+                Object.assign(f, { cls: 'ALL', minAcres: null, maxAcres: null, minUnits: null, maxUnits: null, minAV: null, maxAV: null, hideCommon: false, mapArea: false });
+                if (searchState.statewide) f.county = 'ALL';
+            }
             return f;
         }
 
@@ -1498,7 +1546,17 @@ svg.leaflet-image-layer.leaflet-interactive path {
             }
             if (f.text) {
                 const t = sqlStr(f.text.toUpperCase());
-                clauses.push(`(UPPER(prop_add) LIKE '%${t}%' OR UPPER(dlgf_prop_address) LIKE '%${t}%' OR UPPER(parcel_id) LIKE '%${t}%' OR UPPER(state_parcel_id) LIKE '%${t}%' OR UPPER(prop_city) LIKE '%${t}%' OR prop_zip LIKE '${t}%')`);
+                // A house address matches its number and street name core; anything else matches the text as typed,
+                // with street types and directions abbreviated the way most counties store them
+                const q = parseAddressQuery(f.text);
+                const a = sqlStr(q ? `${q.num} %${q.core}` : normalizeAddress(f.text));
+                const addrLike = q ? `'${a}%'` : `'%${a}%'`;
+                const digits = f.text.replace(/\D/g, '');
+                const ors = [`UPPER(prop_add) LIKE ${addrLike}`, `UPPER(dlgf_prop_address) LIKE ${addrLike}`];
+                if (!q) ors.push(`UPPER(parcel_id) LIKE '%${t}%'`, `UPPER(state_parcel_id) LIKE '%${t}%'`, `UPPER(prop_city) LIKE '%${t}%'`, `prop_zip LIKE '${t}%'`);
+                // Parcel IDs typed with or without dashes
+                if (!q && digits.length >= 10) ors.push(`state_parcel_id LIKE '%${digits}%'`);
+                clauses.push(`(${ors.join(' OR ')})`);
             }
             if (includeArea && (f.minAcres != null || f.maxAcres != null)) {
                 // Server pre-filter on SHAPE__Area (square degrees) with ±6% slack for latitude spread across Indiana.
@@ -1553,6 +1611,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
         }
 
         async function runSearch(reset, opts = {}) {
+            if (reset) searchState.statewide = !!opts.statewide;
             const f = getFilters();
             const seq = ++searchState.seq;
             if (reset) { searchState.offset = 0; searchState.areaServerSide = true; results = []; }
@@ -1596,15 +1655,29 @@ svg.leaflet-image-layer.leaflet-interactive path {
                 return;
             }
 
+            // Nothing in the chosen county: look for the address or parcel across Indiana
+            if (reset && f.text && !results.length && f.county !== 'ALL' && !opts.statewide) return runSearch(true, { ...opts, statewide: true });
+            // Best address match first
+            const q = f.text ? parseAddressQuery(f.text) : null;
+            if (q) results.sort((x, y) => addressMatchRank(x, q) - addressMatchRank(y, q));
+
             setLoading(false);
             setSourceStatus('ok', 'Live');
             const notes = [];
+            if (f.text) {
+                const county = (COUNTIES.find(c => c.fips === document.getElementById('filter-county').value) || {}).name;
+                notes.push(searchState.statewide && county ? `Not found in ${county} County, so searched all of Indiana` : 'Text search ignores the class, acreage, units and value filters');
+            }
             if (!searchState.areaServerSide && (f.minAcres != null || f.maxAcres != null)) notes.push('Acreage filtered in browser');
             if (avActive) notes.push(gatewayDown ? "Couldn't load assessor data" : `Assessed value checked on ${searchState.offset.toLocaleString()} parcels; $0 (exempt / unassessed) left out`);
             document.getElementById('query-note').textContent = notes.join(' · ');
             renderParcelList();
             drawResults();
             if (reset && !opts.keepView && resultsLayer.getLayers().length) map.fitBounds(resultsLayer.getBounds(), { padding: [30, 30], maxZoom: 16 });
+            // A single result, or a single exact address match, opens straight away
+            if (reset && f.text && (results.length === 1 || (q && results.length && addressMatchRank(results[0], q) === 0 && addressMatchRank(results[1], q) > 0))) {
+                selectParcel(results[0]); zoomToParcel(results[0]);
+            }
             if (reset) updateCount(f, where, seq);
             // Show assessed values on the cards without blocking the list
             if (!avActive) enrichAssessments(results).then(() => { if (seq === searchState.seq) renderParcelList(); });
