@@ -703,6 +703,11 @@ svg.leaflet-image-layer.leaflet-interactive path {
         .leaflet-container { background: #0f172a; cursor: crosshair; }
         .leaflet-interactive { cursor: pointer; }
         input[type=number]::-webkit-inner-spin-button { opacity: 0.4; }
+        /* Analyst chat (classes not in the compiled Tailwind build) */
+        .analyst-pane { height: calc(100vh - 230px); min-height: 420px; }
+        .list-disc { list-style: disc; }
+        .pl-4 { padding-left: 1rem; }
+        .text-indigo-300 { color: #a5b4fc; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans antialiased h-screen flex flex-col overflow-hidden">
@@ -1068,16 +1073,16 @@ svg.leaflet-image-layer.leaflet-interactive path {
                 </div>
 
                 <!-- TAB 3: ANALYST CHAT -->
-                <div id="tab-content-chat" class="space-y-4 hidden flex flex-col h-[420px]">
+                <div id="tab-content-chat" class="space-y-4 hidden flex flex-col analyst-pane">
                     <div class="bg-indigo-950/40 border border-indigo-500/30 p-3 rounded-xl text-[11px] text-indigo-200 flex items-start gap-2">
                         <i data-lucide="bot" class="w-4 h-4 text-indigo-400 shrink-0 mt-0.5"></i>
                         <div>
-                            <strong>LandLens Analyst:</strong> I answer only from this parcel's record and your model assumptions. Ask about size, class, location, tax districts, or yield.
+                            <strong>LandLens Analyst:</strong> I pull together this parcel's record, assessed value and ownership, measured floodplain/wetlands/slope, nearby comps and your land value model. Ask for a deal brief, what you can pay, or what-ifs like "at 20 units/acre and $240k". No AI service or key is used.
                         </div>
                     </div>
                     <div id="chat-messages" class="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-2 text-xs"></div>
                     <div class="pt-2 flex gap-2">
-                        <input type="text" id="chat-input" placeholder="Ask about size, class, location, yield…" onkeydown="if(event.key==='Enter') sendChatMessage()" class="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500">
+                        <input type="text" id="chat-input" placeholder="Is this a good deal? What can I pay? What if 4 homes/acre?" onkeydown="if(event.key==='Enter') sendChatMessage()" class="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500">
                         <button onclick="sendChatMessage()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg font-semibold transition flex items-center justify-center">
                             <i data-lucide="send" class="w-3.5 h-3.5"></i>
                         </button>
@@ -2098,7 +2103,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
             document.getElementById('chat-messages').innerHTML = `
                 <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
                     <div class="text-[10px] text-slate-400 font-semibold">LandLens Analyst</div>
-                    <p class="text-slate-200">Loaded the record for <span class="text-emerald-400 font-semibold">${escapeHtml(p.address || p.parcel_id || 'this parcel')}</span>. What would you like to know?</p>
+                    <p class="text-slate-200">Loaded <span class="text-emerald-400 font-semibold">${escapeHtml(p.address || p.parcel_id || 'this parcel')}</span>. Ask me anything about it, or start here:</p>
+                    ${followUps([])}
                 </div>`;
 
             updateWatchlistButtonState();
@@ -2227,9 +2233,10 @@ svg.leaflet-image-layer.leaflet-interactive path {
         }
 
         // ---- Development model ----
-        function computeModel() {
+        // `over` replaces input values by id (e.g. { 'calc-density': 20 }) for what-if questions, without touching the inputs
+        function computeModel(over = {}) {
             if (!selectedParcel || selectedParcel.acres == null) return null;
-            const val = id => parseFloat(document.getElementById(id).value) || 0;
+            const val = id => over[id] != null ? over[id] : (parseFloat(document.getElementById(id).value) || 0);
             const gross = selectedParcel.acres;
             const site = selectedParcel._site;
             const on = document.getElementById('calc-constraints').checked;
@@ -3118,11 +3125,423 @@ svg.leaflet-image-layer.leaflet-interactive path {
             }
         }
 
-        // ---- Analyst chat: answers only from the parcel record and model assumptions ----
-        function sendChatMessage() {
+        // ---- Analyst chat ----
+        // A rule-based analyst: it reads the question for topics and numbers, gathers what the page already knows about the
+        // parcel (record, assessment, measured site constraints, nearby comps, the land value model), and writes an answer
+        // with its reasoning. No AI service is called. It remembers the last topic and what-if numbers for follow-ups.
+        const ANALYST_WAIT_MS = 25000;  // longest it waits for comps or site measurement before answering without them
+        let analystMemory = { parcel: null, topics: [], over: {}, landPrice: null };
+
+        const ANALYST_TOPICS = [
+            // [topic, pattern] — order sets the order of sections in a multi-topic answer
+            ['help', /\b(help|what can you|what do you know|capabilit\w*|what (should|can) i ask)\b/],
+            ['brief', /\b(summar\w*|overview|brief|insights?|thoughts?|opinion|good deal|worth (it|pursuing|a look)|should (i|we)|pursue|opportunit\w*|pros|cons|risks?|red flags?|concerns?|tell me about|what do you think|analy[sz]\w*|evaluat\w*|underwrit\w*|verdict|recommend\w*|take on)\b/],
+            ['price', /\b(offer|pay|max(imum)? (price|bid|land)|land (price|cost|value)|how much (should|can|could|would)|bid|afford|residual|rlv|worth to (a )?developer|margin|profit|return|pencil)\b/],
+            ['breakeven', /\b(break ?even|minimum (sale|price|rent)|needs? to (sell|be worth)|need to sell for|what (sale )?price (do|would|will|should) (i|we) need|(sale|selling) price (do|would|will) (i|we) need|price (do|would) (i|we) need)\b/],
+            ['sensitivity', /\b(sensitiv\w*|stress\w*|downside|upside|what happens if (costs?|prices?)|swing|how risky)\b/],
+            ['capacity', /\b(units?|homes?|houses?|lots?|density|yield|capacity|how many|fit|build|develop|apartments?|townhomes?)\b/],
+            ['comps', /\b(comps?|comparables?|precedents?|similar (projects?|developments?|sites?)|nearby (projects?|developments?|apartments?|neighborhoods?|subdivisions?))\b/],
+            ['constraints', /\b(flood\w*|wetlands?|slopes?|steep|setbacks?|constraints?|unbuildable|buildable|topograph\w*|environmental|open space)\b/],
+            ['assessment', /\b(assess\w*|tax(ed)? value|valuation|valued)\b|\bav\b/],
+            ['owner', /\b(owners?|owned|who (owns|has)|mailing|contact|reach|motivat\w*|off.?market|seller|tenure|how long|acquired|transfer\w*|llc|entity|absentee)\b/],
+            ['unconnected', /\b(zoning|zoned|rezon\w*|permitted|allowed uses?|sales? history|sold for|last sold|last sale|listing|listed)\b/],
+            ['size', /\b(acres?|acreage|size|how big|how large|square (feet|footage)|sq ?ft|area)\b/],
+            ['class', /\b(property class|class code|land use|vacant|what type|classif\w*|use code)\b/],
+            ['districts', /\b(school|township|tax district|taxing|library)\b/],
+            ['location', /\b(where|address|located|location|county|coordinates|map)\b/],
+            ['ids', /\b(parcel (number|id)|\bpin\b|state parcel)\b|\bid\b/]
+        ];
+
+        // ---- Reading numbers out of a question ----
+        function parseMoney(numStr, suffix) {
+            let v = parseFloat(String(numStr).replace(/,/g, ''));
+            if (!isFinite(v)) return null;
+            const s = (suffix || '').toLowerCase();
+            if (s === 'k' || s.startsWith('thousand')) v *= 1e3;
+            else if (s === 'm' || s === 'mm' || s.startsWith('million')) v *= 1e6;
+            return v;
+        }
+        const MONEY = String.raw`\$?\s*(\d[\d,]*(?:\.\d+)?)\s*(k|m|mm|thousand|million)?\b`;
+        function parseScenario(q) {
+            const over = {}, labels = {};
+            const grab = (re, fn) => { const m = q.match(re); if (m) { const v = fn(m); if (v != null && isFinite(v)) return v; } return null; };
+            const density = grab(/(\d+(?:\.\d+)?)\s*(?:units?|homes?|houses?|lots?|du|doors?)?\s*(?:\/|per|an|a)\s*(?:acre|ac)\b/, m => +m[1])
+                ?? grab(/density\s*(?:of|at|is|to|=|was|were)?\s*(\d+(?:\.\d+)?)/, m => +m[1]);
+            if (density != null) { over['calc-density'] = density; labels['calc-density'] = `${density}/acre`; }
+            const price = grab(new RegExp(String.raw`(?:sale|sell|sells|selling|sold|price|value|values?|worth|rent\w*)\s*(?:price|value)?\s*(?:of|at|for|is|to|=|was|were|per (?:unit|home|door))?\s*` + MONEY), m => parseMoney(m[1], m[2]));
+            const barePrice = price == null ? grab(new RegExp(String.raw`(?<!pay |paying |offer |for )\bat\s*\$\s*(\d[\d,]*(?:\.\d+)?)\s*(k|m|thousand|million)?\b`), m => parseMoney(m[1], m[2])) : null;
+            if (price == null && barePrice != null && barePrice >= 20000 && barePrice < 5e6) { over['calc-rev'] = barePrice; labels['calc-rev'] = `${fmtMoneyShort(barePrice)} per ${DEV_MODES[devMode].unit}`; }
+            if (price != null && price >= 20000) { over['calc-rev'] = price; labels['calc-rev'] = `${fmtMoneyShort(price)} per ${DEV_MODES[devMode].unit}`; }
+            const cost = grab(new RegExp(String.raw`(?:cost|costs|build|construction|hard costs?)\s*(?:of|at|is|to|=|are|per (?:unit|home|door))?\s*` + MONEY), m => parseMoney(m[1], m[2]));
+            if (cost != null && cost >= 20000) { over['calc-cost'] = cost; labels['calc-cost'] = `${fmtMoneyShort(cost)} cost per ${DEV_MODES[devMode].unit}`; }
+            const profit = grab(/(?:profit|margin|return)\s*(?:of|at|is|to|=)?\s*(\d+(?:\.\d+)?)\s*%/, m => +m[1]) ?? grab(/(\d+(?:\.\d+)?)\s*%\s*(?:profit|margin|return)/, m => +m[1]);
+            if (profit != null && profit < 100) { over['calc-profit'] = profit; labels['calc-profit'] = `${profit}% profit`; }
+            const setback = grab(/(\d+(?:\.\d+)?)\s*(?:ft|feet|foot|')\s*setbacks?/, m => +m[1]) ?? grab(/setbacks?\s*(?:of|at|is|to|=)?\s*(\d+(?:\.\d+)?)/, m => +m[1]);
+            if (setback != null) { over['calc-setback'] = setback; labels['calc-setback'] = `${setback} ft setback`; }
+            const open = grab(/(\d+(?:\.\d+)?)\s*%\s*open space/, m => +m[1]) ?? grab(/open space\s*(?:of|at|is|to|=)?\s*(\d+(?:\.\d+)?)\s*%?/, m => +m[1]);
+            if (open != null && open <= 100) { over['calc-openspace'] = open; labels['calc-openspace'] = `${open}% open space`; }
+            const site = grab(new RegExp(String.raw`(?:site|soft|infrastructure|horizontal)\s*(?:work|costs?|prep)?\s*(?:of|at|is|to|=|are)?\s*` + MONEY), m => parseMoney(m[1], m[2]));
+            if (site != null && site >= 1000) { over['calc-site'] = site; labels['calc-site'] = `${fmtMoneyShort(site)} site/soft costs`; }
+            // Relative changes: "20% more density", "10% lower prices", "costs up 15%"
+            const cur = id => parseFloat(document.getElementById(id).value) || 0;
+            const rel = (nouns, id, label) => {
+                const m = q.match(new RegExp(String.raw`(\d+(?:\.\d+)?)\s*%\s*(more|higher|greater|up|increase|less|lower|fewer|down|decrease|cheaper)\s*(?:in\s*)?(?:` + nouns + ')'))
+                    || q.match(new RegExp('(?:' + nouns + String.raw`)\s*(?:go|goes|are|is|come in)?\s*(up|down|higher|lower)\s*(?:by)?\s*(\d+(?:\.\d+)?)\s*%`));
+                if (!m || over[id] != null) return;
+                const pct = +(isFinite(+m[1]) ? m[1] : m[2]), dir = isFinite(+m[1]) ? m[2] : m[1];
+                const k = /more|higher|greater|up|increase/.test(dir) ? 1 + pct / 100 : 1 - pct / 100;
+                over[id] = cur(id) * k; labels[id] = `${label} ${k > 1 ? '+' : '−'}${pct}%`;
+            };
+            rel('density|units|homes|lots|doors', 'calc-density', 'density');
+            rel('sale prices?|prices?|rents?|values?|revenue', 'calc-rev', 'sale price');
+            rel('costs?|construction|build costs?', 'calc-cost', 'cost');
+            // A land price the user is considering paying
+            const land = grab(new RegExp(String.raw`(?:pay|paying|asking|ask|list(?:ed|ing)?(?: price)?|land (?:price|cost)|offer(?:ing)?|purchase(?: price)?|buy (?:it )?for|acquire (?:it )?for|costs? me|for)\s*(?:of|at|is|=)?\s*` + MONEY), m => parseMoney(m[1], m[2]));
+            const landPrice = land != null && land >= 1000 && land !== over['calc-rev'] && land !== over['calc-cost'] ? land : null;
+            return { over, labels, landPrice };
+        }
+
+        // ---- What the page knows about the parcel ----
+        function withTimeout(promise, ms) {
+            return Promise.race([promise, new Promise(r => setTimeout(() => r(null), ms))]);
+        }
+        async function analystComps(p) {
+            if (p.acres == null || p.lat == null) return null;
+            const key = `${p.objectid}|${devMode}`;
+            if (!compCache.has(key) && selectedParcel === p) loadComps();
+            const r = compCache.has(key) ? await withTimeout(compCache.get(key), ANALYST_WAIT_MS) : null;
+            return r && !r.error ? r : null;
+        }
+        async function analystSite(p) {
+            if (!p.rings) return null;
+            if (p._site) return p._site;
+            loadSiteConstraints(p);
+            const site = siteCache.has(p.objectid) ? await withTimeout(siteCache.get(p.objectid), ANALYST_WAIT_MS) : null;
+            if (site && selectedParcel === p) p._site = site;
+            return site;
+        }
+        function ownerSignals(p) {
+            const a = p.assess;
+            if (!a) return { list: [], tenureYears: null };
+            const list = [];
+            let tenureYears = null;
+            const dm = String(a.transferDate || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+            if (dm && +dm[3] >= 1950) {
+                tenureYears = (Date.now() - new Date(+dm[3], +dm[1] - 1, +dm[2])) / (365.25 * 864e5);
+                if (tenureYears >= 15) list.push(`long ownership (${Math.floor(tenureYears)} years, since ${dm[3]})`);
+            }
+            if (a.ownerState && a.ownerState !== 'IN') list.push(`out-of-state owner (${a.ownerState})`);
+            else if (a.ownerAddress && p.address && !a.ownerAddress.toUpperCase().includes(p.address.toUpperCase())) list.push('owner mails tax bills elsewhere (absentee)');
+            if (a.owner && /\b(TRUST|TRT|TR|TTE|TRUSTEE|ESTATE|EST|HEIRS)\b/i.test(a.owner)) list.push('held in a trust or estate (often a sign of succession or a future sale)');
+            else if (a.owner && ENTITY_RE.test(a.owner)) list.push('entity owner (company or institution)');
+            if (a.impAV === 0 && a.landAV > 0) list.push('no improvements assessed (vacant land)');
+            return { list, tenureYears };
+        }
+
+        function sensitivityTable(base) {
+            const v = id => parseFloat(document.getElementById(id).value) || 0;
+            const cases = [
+                ['Sale price −10%', { 'calc-rev': v('calc-rev') * 0.9 }], ['Sale price +10%', { 'calc-rev': v('calc-rev') * 1.1 }],
+                ['Cost +10%', { 'calc-cost': v('calc-cost') * 1.1 }], ['Cost −10%', { 'calc-cost': v('calc-cost') * 0.9 }],
+                ['Density −20%', { 'calc-density': v('calc-density') * 0.8 }], ['Density +20%', { 'calc-density': v('calc-density') * 1.2 }]
+            ];
+            return cases.map(([label, o]) => {
+                const m = computeModel({ ...base, ...o });
+                return { label, rlv: m ? m.rlv : null };
+            });
+        }
+        function breakevenPrice(m, over, landCost = 0) {
+            // Sale price per unit at which land value (after target profit) equals landCost
+            const v = id => over[id] != null ? over[id] : (parseFloat(document.getElementById(id).value) || 0);
+            const profit = v('calc-profit') / 100;
+            if (!m || m.units <= 0 || profit >= 1) return null;
+            return (m.units * v('calc-cost') + v('calc-site') + landCost) / (m.units * (1 - profit));
+        }
+
+        // ---- Writing the answer ----
+        const strong = s => `<strong class="text-white">${escapeHtml(s)}</strong>`;
+        const good = s => `<strong class="text-emerald-400">${escapeHtml(s)}</strong>`;
+        const warn = s => `<strong class="text-amber-400">${escapeHtml(s)}</strong>`;
+        const bullets = items => items.length ? `<ul class="list-disc pl-4 space-y-0.5">${items.map(i => `<li>${i}</li>`).join('')}</ul>` : '';
+        const section = (title, body) => `<div class="space-y-1"><div class="text-[10px] uppercase tracking-wider font-bold text-indigo-300">${escapeHtml(title)}</div>${body}</div>`;
+        const money = v => v == null ? '—' : (v < 0 ? '−' : '') + fmtMoney(Math.abs(v));
+
+        function answerHelp() {
+            return section('What I can do', bullets([
+                `${strong('Deal brief')}: "Is this a good deal?" or "What are the risks?" pulls comps, site constraints, value and ownership into one view.`,
+                `${strong('Pricing')}: "What can I pay?", "If I pay $800k, what's my margin?", "What sale price do I need?"`,
+                `${strong('What-ifs')}: "What if 20 units/acre at $240k?", "with a 50 ft setback", "at 12% profit". Follow up with just the numbers, e.g. "and at 4/acre?"`,
+                `${strong('Comps, capacity and constraints')}: "How many homes fit?", "Show me the comps", "How much is in the floodplain?"`,
+                `${strong('Record')}: assessed value, owner and ownership signals, size, class, location, tax districts, IDs.`,
+                `Ask "why?" after any answer to see how I got there.`
+            ]));
+        }
+
+        function capacityLines(p, m, st, cfg) {
+            const lines = [];
+            const c = st && st.n >= MIN_COMPS ? compCapacity(st, m) : null;
+            if (c) {
+                lines.push(`Comps: ${strong(`${c.lo.toLocaleString()}–${c.hi.toLocaleString()} ${cfg.units}`)} (median ${c.mid.toLocaleString()}) from ${st.n} nearby ${devMode === 'apartment' ? 'apartment properties' : 'neighborhoods built since 2013'} at a weighted median of ${strong(st.med.toFixed(1) + '/acre')}, applied to the ${fmtAcres(c.acres)} acres outside floodplain, wetlands and steep slopes.`);
+                const gap = m.units ? (m.units - c.mid) / c.mid : 0;
+                if (Math.abs(gap) > 0.25) lines.push(`Your model gives ${strong(m.units.toLocaleString())}, ${warn(Math.round(Math.abs(gap) * 100) + '% ' + (gap > 0 ? 'above' : 'below'))} the comp median. ${gap > 0 ? 'That assumes denser development than the neighbors have built, so zoning and the market need to support it.' : 'Your assumptions are more conservative than what has actually been built nearby.'}`);
+                else lines.push(`Your model's ${strong(m.units.toLocaleString() + ' ' + cfg.units)} is in line with the comps.`);
+            } else {
+                lines.push(`Your model: ${strong(m.units.toLocaleString() + ' ' + cfg.units)} at ${m.density}/acre on ${fmtAcres(m.net)} net acres.`);
+                lines.push(st ? `Only ${st.n} usable comp${st.n === 1 ? '' : 's'} found, below the ${MIN_COMPS} needed for a comp-based range, so treat this as assumption-only.` : `I couldn't load comparables in time, so this is assumption-only. The Development Engine tab shows them once they load.`);
+            }
+            return lines;
+        }
+
+        function constraintLines(p, m, site) {
+            if (!p.rings) return ['This parcel has no mapped boundary, so I can\'t measure unbuildable land.'];
+            if (!site) return ['Site measurement (floodplain, wetlands, slope) is still running. Ask again in a moment.'];
+            const pct = ac => m.gross ? Math.round(ac / m.gross * 100) : 0;
+            const lines = [];
+            const parts = [['floodplain (FEMA high-risk)', m.flood], ['wetlands', m.wetland], ['steep slopes (over 15%)', m.slope]].filter(([, ac]) => ac > 0.005);
+            lines.push(parts.length
+                ? `Measured: ${parts.map(([n, ac]) => `${strong(fmtAcres(ac) + ' ac')} ${n} (${pct(ac)}%)`).join(', ')}.`
+                : `${good('No floodplain, wetlands or steep slopes')} measured on the parcel.`);
+            lines.push(`Setbacks take ${fmtAcres(m.setback)} ac and open space ${fmtAcres(m.openSpace)} ac, leaving ${strong(fmtAcres(m.net) + ' net acres')} of ${fmtAcres(m.gross)} (${m.deduct}% unbuildable).`);
+            if (site.failed && site.failed.length) lines.push(`${warn("Couldn't reach " + site.failed.join(', '))}, so ${site.failed.length > 1 ? 'those aren\'t' : 'that isn\'t'} subtracted. The real figure may be lower.`);
+            return lines;
+        }
+
+        function priceLines(p, m, over, landPrice, cfg) {
+            const lines = [];
+            const a = p.assess;
+            const target = over['calc-profit'] ?? (parseFloat(document.getElementById('calc-profit').value) || 0);
+            if (m.rlv > 0) lines.push(`At these assumptions the land supports up to ${strong(money(m.rlv))}${p.acres ? ` (${money(m.rlv / p.acres)}/acre)` : ''} while still hitting your ${target}% target profit.`);
+            else lines.push(`At these assumptions the land value comes out at ${warn(money(m.rlv))}: there's nothing left to pay for land at your ${target}% target profit.`);
+            if (m.rlv <= 0) {
+                const be = breakevenPrice(m, over);
+                lines.push(`${warn("It doesn't pencil")}: costs plus profit exceed revenue before paying anything for the land.${be ? ` Even with the land free, sales would need about ${strong(fmtMoney(be) + ' per ' + cfg.unit)} to hit your target profit.` : ''}`);
+            }
+            if (a && a.totalAV > 0 && m.rlv > 0) {
+                const ratio = m.rlv / a.totalAV;
+                const farm = a.landAV > 0 && p.acres >= 1 && a.landAV / p.acres < AG_RATE_FLAG;
+                lines.push(`That's ${strong(ratio.toFixed(1) + '×')} the assessed value of ${fmtMoney(a.totalAV)}.${farm ? ' The assessment uses Indiana\'s farmland formula, so it says little about market value: a big gap here is normal and is not a discount signal by itself.' : ratio >= 1.5 ? ' Development value well above the assessment suggests room to pay a premium that still works for you.' : ratio < 1 ? ' The assessment is above what development supports, so expect the owner\'s price expectations to be a hurdle.' : ''}`);
+            }
+            if (landPrice != null) {
+                const v = id => over[id] != null ? over[id] : (parseFloat(document.getElementById(id).value) || 0);
+                const revenue = m.units * v('calc-rev'), costs = m.units * v('calc-cost') + v('calc-site') + landPrice;
+                const profit = revenue - costs, margin = revenue ? profit / revenue * 100 : 0;
+                const be = breakevenPrice(m, { ...over, 'calc-profit': v('calc-profit') }, landPrice);
+                lines.push(`Paying ${strong(fmtMoney(landPrice))}${p.acres ? ` (${money(landPrice / p.acres)}/acre)` : ''}: profit ${profit >= 0 ? good(fmtMoney(profit)) : warn('−' + fmtMoney(-profit))}, a ${margin >= v('calc-profit') ? good(margin.toFixed(1) + '% margin') : warn(margin.toFixed(1) + '% margin')} against your ${v('calc-profit')}% target.${margin < v('calc-profit') && be ? ` To hit target at that price, sales need about ${strong(fmtMoney(be) + ' per ' + cfg.unit)}.` : ''}`);
+            }
+            return lines;
+        }
+
+        function scenarioNote(found, base) {
+            return found.length ? `<p class="text-slate-400">What-if: ${found.map(f => escapeHtml(f)).join(', ')}. Your inputs aren't changed${base && base.m ? `; at your current inputs it's ${base.m.units.toLocaleString()} ${DEV_MODES[devMode].units} and ${money(base.m.rlv)} land value` : ''}.</p>` : '';
+        }
+
+        async function buildAnswer(p, msg, onStatus) {
+            const q = msg.toLowerCase().replace(/[’']/g, "'");
+            const cfg = DEV_MODES[devMode];
+            if (analystMemory.parcel !== p) analystMemory = { parcel: p, topics: [], over: {}, landPrice: null };
+
+            // "why?" / "how did you get that?" explains the previous answer
+            if (/^\s*(why|how come|how so|explain|how did you|how do you know|show (me )?(your|the) (work|math)|walk me through)\b/.test(q) && analystMemory.topics.length && !/\b(flood|comp|owner|price)\b/.test(q)) {
+                return explainTopics(p, analystMemory.topics);
+            }
+
+            const { over: newOver, labels: newLabels, landPrice: newLand } = parseScenario(q);
+            const newFound = Object.keys(newOver).length > 0;
+            const qTopics = q.replace(/\d+(?:\.\d+)?\s*(?:units?|homes?|houses?|lots?|du|doors?)?\s*(?:\/|per|an|a)\s*(?:acre|ac)\b/g, ' density ');
+            let topics = ANALYST_TOPICS.filter(([, re]) => re.test(qTopics)).map(([t]) => t);
+            const isFollowUp = /^\s*(and|what about|how about|ok(ay)?|now|then|also|same|at|with)\b/.test(q) || (!topics.length && (newFound || newLand != null));
+            // Numbers carry over when the question builds on the last one ("and at 4/acre?"); "what if…" starts a fresh scenario
+            const carry = isFollowUp && !(/^\s*(what if|suppose|imagine|say)\b/.test(q) && !/\b(also|too|as well|still)\b/.test(q));
+            const over = carry ? { ...analystMemory.over, ...newOver } : newOver;
+            const labels = carry ? { ...(analystMemory.labels || {}), ...newLabels } : newLabels;
+            const found = Object.values(labels);
+            const landPrice = newLand ?? (carry ? analystMemory.landPrice : null);
+            if (!topics.length && (found.length || landPrice != null)) topics = [...new Set(analystMemory.topics.map(t => t === 'brief' ? 'price' : t).filter(t => ['price', 'capacity', 'breakeven', 'sensitivity'].includes(t)))];
+            if (!topics.length && (found.length || landPrice != null)) topics = landPrice != null ? ['price'] : ['capacity', 'price'];
+            if (landPrice != null && !topics.includes('price')) topics.unshift('price');
+            if (!topics.length && isFollowUp && analystMemory.topics.length) topics = analystMemory.topics;
+            if (!topics.length) {
+                analystMemory.topics = [];
+                return `<p>I'm not sure what you're asking. Here's what I can help with:</p>` + answerHelp();
+            }
+            if (found.length || landPrice != null) {
+                if (!topics.some(t => ['price', 'brief', 'breakeven', 'sensitivity'].includes(t))) topics.push('price');
+                if (['calc-density', 'calc-setback', 'calc-openspace'].some(id => over[id] != null) && !topics.includes('capacity') && !topics.includes('brief')) topics.unshift('capacity');
+            }
+            if (topics.includes('brief')) topics = ['brief', ...topics.filter(t => !['brief', 'capacity', 'constraints', 'owner', 'assessment', 'price'].includes(t))];
+            topics = [...new Set(topics)].slice(0, 4);
+            analystMemory.topics = topics; analystMemory.over = over; analystMemory.labels = labels; analystMemory.landPrice = landPrice;
+
+            // Gather what the answer needs
+            const needComps = topics.some(t => ['brief', 'capacity', 'comps', 'price', 'sensitivity', 'breakeven'].includes(t));
+            const needSite = topics.some(t => ['brief', 'capacity', 'constraints', 'price', 'sensitivity', 'breakeven'].includes(t));
+            let r = null, site = p._site || null;
+            if (needSite && !site && p.rings) { onStatus('Measuring floodplain, wetlands and slope…'); site = await analystSite(p); }
+            if (needComps) { onStatus(`Pulling nearby ${devMode === 'apartment' ? 'apartment' : 'neighborhood'} comparables…`); r = await analystComps(p); }
+            if ((needComps || needSite || topics.includes('owner') || topics.includes('assessment')) && p.assess === undefined) { onStatus('Loading the assessor record…'); await withTimeout(loadAssessmentFor(p), 8000); }
+            if (selectedParcel !== p) return null;
+            const st = r ? compStats(r) : null;
+            const base = { m: computeModel() };
+            const m = computeModel(over);
+
+            const out = [scenarioNote(found, base)];
+            for (const t of topics) {
+                if (t === 'help') out.push(answerHelp());
+                else if (t === 'brief') out.push(answerBrief(p, m, st, site, over, landPrice, cfg));
+                else if (t === 'price') out.push(m ? section('What the land supports', bullets(priceLines(p, m, over, landPrice, cfg))) : section('Pricing', '<p>No boundary, so I can\'t run the land value model.</p>'));
+                else if (t === 'breakeven') {
+                    const be = m && breakevenPrice(m, over, landPrice || 0);
+                    out.push(section('Break-even', be ? `<p>To ${landPrice ? `pay ${strong(fmtMoney(landPrice))} for the land and ` : ''}hit your target profit, sales need about ${strong(fmtMoney(be) + ' per ' + cfg.unit)} (you have ${fmtMoney(over['calc-rev'] ?? parseFloat(document.getElementById('calc-rev').value))}).</p>` : '<p>I can\'t compute a break-even without units on the site.</p>'));
+                } else if (t === 'sensitivity') {
+                    const rows = m ? sensitivityTable(over) : [];
+                    out.push(section('Sensitivity of land value', m ? bullets([`Base: ${strong(money(m.rlv))}`, ...rows.map(x => `${escapeHtml(x.label)}: ${x.rlv != null && x.rlv < 0 ? warn(money(x.rlv)) : strong(money(x.rlv))} (${x.rlv != null ? (x.rlv >= m.rlv ? '+' : '−') + fmtMoney(Math.abs(x.rlv - m.rlv)) : '—'})`)])
+                        + `<p class="text-slate-400">Land value moves several times faster than prices or costs because it's what's left over: small changes in revenue or cost land entirely on the land.</p>` : '<p>No boundary, so I can\'t run the model.</p>'));
+                } else if (t === 'capacity') out.push(m ? section(`How many ${cfg.units}`, bullets(capacityLines(p, m, st, cfg))) : section('Capacity', '<p>No boundary, so I can\'t compute yield.</p>'));
+                else if (t === 'comps') out.push(answerComps(p, r, st, cfg));
+                else if (t === 'constraints') out.push(m ? section('Buildable land', bullets(constraintLines(p, m, site))) : '');
+                else if (t === 'assessment' || t === 'owner') { if (!out.some(s => s.includes('data-owner'))) out.push(answerOwner(p)); }
+                else if (t === 'unconnected') out.push(section('Not connected yet', `<p>Zoning and sale history aren't in LandLens yet, so I won't guess them.${p.assess && p.assess.transferDate ? ` The assessor shows the current owner took title on ${strong(p.assess.transferDate)}.` : ''} Check the ${escapeHtml(p.county || 'county')} County zoning map and the recorder's deed search for the parcel ID ${strong(p.parcel_id || p.state_parcel_id || '')}.</p>`));
+                else if (t === 'size') out.push(section('Size', `<p>${strong(fmtAcres(p.acres) + ' acres')} (${Math.round((p.acres || 0) * 43560).toLocaleString()} sq ft) from the mapped boundary${p.assess && p.assess.deededAcres ? `; the deed says ${fmtAcres(+p.assess.deededAcres)} acres` : ''}.</p>`));
+                else if (t === 'class') out.push(section('Property class', `<p>${p.classCode ? `DLGF ${strong(p.classCode)}: ${strong(classLabel(p.classCode))}.${VACANT_CODES.includes(p.classCode) ? ' A vacant-land class.' : ''}` : 'No DLGF property class on record.'}</p>`));
+                else if (t === 'districts') out.push(section('Tax districts', `<p>Township ${strong(p.township || '—')}, taxing city ${strong(p.taxCity || '—')}, school district ${strong(p.school || '—')}, tax district ${strong(p.taxDistrict || '—')}.</p>`));
+                else if (t === 'location') out.push(section('Location', `<p>${strong(p.address ? [p.address, p.city, p.zip].filter(Boolean).join(', ') : addressLine(p))} in ${strong((p.county || '—') + ' County')}${p.lat != null ? ` (${p.lat.toFixed(5)}, ${p.lng.toFixed(5)})` : ''}.</p>`));
+                else if (t === 'ids') out.push(section('IDs', `<p>Parcel ID ${strong(p.parcel_id || '—')}, state parcel ID ${strong(p.state_parcel_id || '—')}.</p>`));
+            }
+            return out.filter(Boolean).join('');
+        }
+
+        function answerOwner(p) {
+            const a = p.assess;
+            if (a === undefined) return section('Owner & assessment', '<p data-owner>The assessor record is still loading. Ask again in a moment.</p>');
+            if (!a) return section('Owner & assessment', `<p data-owner>No assessor record matched this parcel${isMarion(p) ? '' : ` in ${escapeHtml(p.county || 'this')} County's file`}, so I don't have its owner or assessed value.</p>`);
+            const sig = ownerSignals(p);
+            const zero = zeroAVReason(p);
+            const farm = a.landAV > 0 && p.acres >= 1 && a.landAV / p.acres < AG_RATE_FLAG;
+            const lines = [
+                `Owner: ${strong(a.owner || '—')}${a.ownerAddress ? `, mailing to ${escapeHtml(a.ownerAddress)}` : ''}${a.transferDate ? `, title since ${strong(a.transferDate)}` : ''}.`,
+                `Assessed: ${strong(fmtMoney(a.totalAV))} (land ${fmtMoney(a.landAV)}, improvements ${fmtMoney(a.impAV)})${p.acres && a.totalAV ? `, ${fmtMoney(a.totalAV / p.acres)}/acre` : ''}.${zero ? ' ' + escapeHtml(zero.text) : ''}${farm ? ' Land is on Indiana\'s farmland formula, so this is a use value, not a market value.' : ''}`
+            ];
+            if (sig.list.length) lines.push(`Ownership signals: ${sig.list.map(s => escapeHtml(s)).join('; ')}. These are indicators only; they don't mean the owner wants to sell.`);
+            else lines.push('No strong ownership signals (recent, local, individual owner).');
+            const src = a.source === 'indy' ? 'City of Indianapolis / Marion County open data' : `${a.year || ''} Real Property file via Indiana Gateway`;
+            return section('Owner & assessment', `<div data-owner>${bullets(lines)}</div><p class="text-slate-500 text-[10px]">Source: ${escapeHtml(src)}.</p>`);
+        }
+
+        function answerComps(p, r, st, cfg) {
+            if (!r) return section('Comparables', `<p>No comparables loaded${p.acres != null && p.acres < MIN_SITE_ACRES[devMode] ? ` (at ${fmtAcres(p.acres)} acres the site is below the ${MIN_SITE_ACRES[devMode]}-acre minimum for ${devMode} comps)` : ' yet'}. Switch between apartment and neighborhood mode on the Development Engine tab to search the other type.</p>`);
+            const used = [...st.used].sort((x, y) => x.miles - y.miles);
+            const top = used.slice(0, 5).map(c => `${escapeHtml(c.label || (devMode === 'apartment' ? 'Apartment parcel' : 'Neighborhood'))}${c.city ? ', ' + escapeHtml(c.city) : ''}: ${strong(c.density.toFixed(1) + '/acre')} (${c.units} ${cfg.units} on ${fmtAcres(c.acres)} ac, ${c.miles.toFixed(1)} mi)`);
+            const spread = st.p75 && st.p25 ? (st.p75 - st.p25) / st.med : null;
+            const lines = [
+                `${strong(st.n + ' comps')} within ${r.miles} miles: weighted median ${strong(st.med.toFixed(1) + '/acre')}, middle half ${st.p25.toFixed(1)}–${st.p75.toFixed(1)}/acre${spread != null ? ` (${spread < 0.35 ? good('tight') : spread < 0.7 ? 'moderate' : warn('wide')} spread)` : ''}.`,
+                ...(st.outliers.length ? [`${st.outliers.length} outlier${st.outliers.length === 1 ? '' : 's'} left out (${st.outliers.map(c => c.density.toFixed(1)).join(', ')}/acre).`] : []),
+                `Nearest: ${bullets(top)}`
+            ];
+            return section('Comparables', bullets(lines));
+        }
+
+        function answerBrief(p, m, st, site, over, landPrice, cfg) {
+            const plus = [], minus = [], gaps = [], next = [];
+            let hardNo = false, noPencil = false;
+            const a = p.assess, sig = ownerSignals(p);
+            // Disqualifiers first
+            if (p.commonArea || (a && a.owner && HOA_RE.test(a.owner))) hardNo = true, minus.push(`${warn('Looks like an HOA / subdivision common area')}, which is usually restricted and not for sale.`);
+            const zero = zeroAVReason(p);
+            if (zero && zero.label === 'Exempt') hardNo = true, minus.push(`${warn('Exempt owner')} (government, school, church or nonprofit), which is rarely a willing seller.`);
+            if (p.classCode && VACANT_CODES.includes(p.classCode)) plus.push(`Vacant-land class (${escapeHtml(p.classCode)}), so no demolition or tenants to deal with.`);
+            else if (a && a.impAV > 0 && a.totalAV > 0 && a.impAV / a.totalAV > 0.3) minus.push(`Improvements make up ${Math.round(a.impAV / a.totalAV * 100)}% of the assessed value: expect existing buildings to buy out or demolish.`);
+            if (p.acres != null) {
+                if (p.acres < MIN_SITE_ACRES[devMode]) minus.push(`At ${fmtAcres(p.acres)} acres it's small for ${devMode === 'apartment' ? 'an apartment project' : 'a neighborhood'}.`);
+                else plus.push(`${fmtAcres(p.acres)} acres is a workable ${devMode === 'apartment' ? 'apartment' : 'neighborhood'} site.`);
+            }
+            if (m && site) {
+                const env = m.gross ? m.env / m.gross : 0;
+                if (env > 0.25) minus.push(`${warn(Math.round(env * 100) + '% of the land')} is floodplain, wetland or steep slope.`);
+                else if (env < 0.05) plus.push(`Clean site: under 5% floodplain, wetland or steep slope.`);
+                else minus.push(`${Math.round(env * 100)}% of the land is floodplain, wetland or steep slope; manageable, but price it in.`);
+                if (site.failed && site.failed.length) gaps.push(`couldn't reach ${escapeHtml(site.failed.join(', '))}`);
+            } else if (p.rings) gaps.push('site constraints still measuring');
+            if (m) {
+                if (st && st.n >= MIN_COMPS) {
+                    const c = compCapacity(st, m);
+                    plus.push(`${st.n} nearby comps support about ${strong(`${c.lo.toLocaleString()}–${c.hi.toLocaleString()} ${cfg.units}`)}.`);
+                    const gap = m.units && c.mid ? (m.units - c.mid) / c.mid : 0;
+                    if (gap > 0.25) minus.push(`Your density assumption gives ${Math.round(gap * 100)}% more ${cfg.units} than the comps; the land value below depends on getting that approved.`);
+                    if (st.p75 && (st.p75 - st.p25) / st.med > 0.7) minus.push('Comp densities vary widely, so capacity is less certain.');
+                } else gaps.push('fewer than 3 comps, so capacity rests on your density assumption');
+                if (m.rlv > 0) plus.push(`Land supports up to ${strong(money(m.rlv))}${p.acres ? ` (${money(m.rlv / p.acres)}/acre)` : ''} at your ${devMode} assumptions.`);
+                else { noPencil = true; minus.push(`${warn("Doesn't pencil")} at your assumptions: land value is ${money(m.rlv)}. Ask "what sale price do I need?" to see what would make it work.`); }
+                if (landPrice != null) {
+                    const ok = m.rlv >= landPrice;
+                    (ok ? plus : minus).push(`At a ${fmtMoney(landPrice)} land price you'd be ${ok ? good(fmtMoney(m.rlv - landPrice) + ' under') : warn(fmtMoney(landPrice - m.rlv) + ' over')} what the model supports.`);
+                }
+            }
+            if (a) {
+                if (sig.list.length) plus.push(`Off-market signals: ${sig.list.map(s => escapeHtml(s)).join('; ')}.`);
+                if (a.landAV > 0 && p.acres >= 1 && a.landAV / p.acres < AG_RATE_FLAG) gaps.push('assessed value is a farmland use value, not a market value');
+            } else gaps.push(a === null ? 'no assessor record matched' : 'assessor record still loading');
+            gaps.push('zoning and sale history aren\'t connected');
+
+            // Verdict: count weighs strengths against watch-outs; disqualifiers override
+            const score = plus.length - minus.length;
+            const verdict = hardNo ? warn('Probably not a fit') : noPencil ? warn('Not at these numbers') : score >= 2 ? good('Worth pursuing') : score >= 0 ? strong('Worth a closer look') : warn('Proceed with caution');
+            if (a && a.ownerAddress) next.push(`Reach the owner at ${escapeHtml(a.ownerAddress)}.`);
+            next.push(`Confirm zoning with ${escapeHtml(p.county || 'the')} County planning; it decides whether the density above is allowed.`);
+            if (m && m.rlv > 0) next.push('Ask me "sensitivity" to see how land value moves with price, cost and density.');
+            if (!(st && st.n >= MIN_COMPS)) next.push('Try the other development type on the Development Engine tab; it may find more comps.');
+
+            return section('Bottom line', `<p>${verdict}: ${plus.length} strength${plus.length === 1 ? '' : 's'}, ${minus.length} watch-out${minus.length === 1 ? '' : 's'}.</p>`)
+                + (plus.length ? section('Strengths', bullets(plus)) : '')
+                + (minus.length ? section('Watch-outs', bullets(minus)) : '')
+                + section('Not yet known', bullets(gaps.map(g => escapeHtml(g.charAt(0).toUpperCase() + g.slice(1)) + '.')))
+                + section('Next steps', bullets(next));
+        }
+
+        function explainTopics(p, topics) {
+            const cfg = DEV_MODES[devMode];
+            const notes = {
+                brief: 'The bottom line weighs strengths against watch-outs: site size, measured floodplain/wetland/slope, comp-based capacity, the land value model, assessed value and ownership signals. HOA common areas, exempt owners and a negative land value override it.',
+                price: 'Land value is what\'s left after building costs, site/soft costs and your target profit come out of sales: units × sale price − units × cost − site costs − profit × revenue. Units come from your net acres × density.',
+                breakeven: 'Break-even sale price = (units × cost + site costs + land price) ÷ (units × (1 − profit %)).',
+                sensitivity: 'Each line reruns the land value model with one input changed and the rest held at your values.',
+                capacity: `Comp capacity applies the comps' weighted median density (per gross acre) to this parcel's land outside floodplain, wetlands and steep slopes. Closer comps weigh more (1 ÷ (miles + 0.5)). The range is a 95% confidence interval on the median, capped at ±15%. Your model instead uses net acres × your ${cfg.units}/acre input.`,
+                comps: devMode === 'apartment' ? 'Apartment comps are nearby parcels in apartment classes (401–403) of half to twice this site\'s acreage. Units come from address points, or building footprints where those are missing.' : 'Neighborhood comps are nearby tracts of similar size that were one parcel in 2013 and are now subdivided; homes and lots on them are counted from today\'s parcels.',
+                constraints: 'The parcel is sampled on a grid of points; each is checked against FEMA high-risk flood zones, the USFWS wetlands inventory and USGS elevation (slopes over 15%), after the setback strip.',
+                owner: 'Owner, mailing address, transfer date and assessed values come from the county assessor file. Signals: 15+ years of ownership, an out-of-state or different mailing address, trust/estate or entity owners, and no improvements.',
+                assessment: 'Assessed values come from the county assessor file. Land under about $4,000/acre is almost always on Indiana\'s farmland formula (2025 base $2,120/acre), which reflects use, not market value.'
+            };
+            const parts = topics.map(t => notes[t]).filter(Boolean);
+            return section('How I got there', parts.length ? bullets(parts.map(s => escapeHtml(s))) : '<p>That answer came straight from the parcel record.</p>');
+        }
+
+        function followUps(topics) {
+            const pick = {
+                brief: ['What can I pay for it?', 'Sensitivity', 'Why?'],
+                price: ['If I pay $500k, what\'s my margin?', 'What sale price do I need?', 'Sensitivity'],
+                capacity: ['Show me the comps', 'What if 20% more density?', 'How much is unbuildable?'],
+                comps: ['How many units fit?', 'Why?', 'Is this a good deal?'],
+                constraints: ['How many units fit?', 'What can I pay for it?'],
+                owner: ['Is this a good deal?', 'What can I pay for it?'],
+                assessment: ['Who owns it?', 'What can I pay for it?'],
+                sensitivity: ['What sale price do I need?', 'Is this a good deal?'],
+                breakeven: ['Sensitivity', 'What can I pay for it?']
+            };
+            const out = [];
+            topics.forEach(t => (pick[t] || []).forEach(s => { if (!out.includes(s)) out.push(s); }));
+            const list = (out.length ? out : ['Is this a good deal?', 'What can I pay for it?', 'How many units fit?']).slice(0, 3);
+            return `<div class="flex flex-wrap gap-1.5 pt-1">${list.map(s => `<button onclick="askAnalyst(this.textContent)" class="px-2 py-0.5 rounded-full border border-slate-700 text-[10px] text-slate-300 hover:border-emerald-500 hover:text-emerald-400">${escapeHtml(s.replace('$500k', fmtMoneyShort(Math.max(0, Math.round((computeModel() || { rlv: 500000 }).rlv / 50000) * 50000) || 500000)))}</button>`).join('')}</div>`;
+        }
+
+        function askAnalyst(text) {
+            document.getElementById('chat-input').value = text;
+            sendChatMessage();
+        }
+
+        let analystBusy = false;
+        async function sendChatMessage() {
             const input = document.getElementById('chat-input');
             const msg = input.value.trim();
-            if (!msg || !selectedParcel) return;
+            if (!msg || !selectedParcel || analystBusy) return;
             const chat = document.getElementById('chat-messages');
             chat.insertAdjacentHTML('beforeend', `
                 <div class="bg-emerald-950/40 p-3 rounded-xl border border-emerald-500/20 space-y-1 ml-6">
@@ -3130,56 +3549,25 @@ svg.leaflet-image-layer.leaflet-interactive path {
                     <p class="text-slate-200 text-right">${escapeHtml(msg)}</p>
                 </div>`);
             input.value = '';
+            const bubble = document.createElement('div');
+            bubble.className = 'bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2 mr-6';
+            bubble.innerHTML = `<div class="text-[10px] text-indigo-400 font-semibold">LandLens Analyst</div><div data-role="body" class="text-slate-200 space-y-2"><span class="text-slate-500">Thinking…</span></div>`;
+            chat.appendChild(bubble);
             chat.scrollTop = chat.scrollHeight;
-
+            const body = bubble.querySelector('[data-role=body]');
             const p = selectedParcel;
-            setTimeout(() => {
-                const q = msg.toLowerCase();
-                const b = s => `<strong class="text-white">${escapeHtml(s)}</strong>`;
-                let reply;
-                if (/assess|\bav\b|owner|own|mailing|taxes|worth/.test(q) && !/sale|sold|sell|bought|purchase|zoning|zoned/.test(q) && p.assess) {
-                    const a = p.assess;
-                    const src = a.source === 'indy' ? 'City of Indianapolis / Marion County open data' : `the ${a.year || ''} Real Property file via Indiana Gateway`;
-                    const zero = zeroAVReason(p);
-                    reply = `${escapeHtml(p.county || '')} County assessor record: total assessed value ${b(fmtMoney(a.totalAV))}${zero ? ` (${escapeHtml(zero.text)})` : ''} (land ${b(fmtMoney(a.landAV))}, improvements ${b(fmtMoney(a.impAV))}). Owner: ${b(a.owner || '—')}, mailing address ${b(a.ownerAddress || '—')}${a.transferDate ? `, owner since ${b(a.transferDate)}` : ''}. Source: ${escapeHtml(src)}, matched by ${a.match}.`;
-                } else if (/assess|\bav\b|owner|own|mailing|worth/.test(q) && !/sale|sold|sell|bought|purchase|zoning|zoned/.test(q)) {
-                    reply = p.assess === null ? 'No assessor record matched this parcel, so I don\'t have its assessed value or owner.'
-                        : 'The assessor data is still loading or couldn\'t be reached. Check the Parcel Record tab in a moment.';
-                } else if (/assess|value|\bav\b|price|sale|sold|sell|bought|purchase|owner|own|zoning|zoned/.test(q)) {
-                    reply = `Sale history and zoning aren't connected yet, so I won't estimate them. Assessed value and owner are on the Parcel Record tab.`;
-                } else if (/acre|size|big|large|area/.test(q)) {
-                    reply = `The parcel is ${b(fmtAcres(p.acres) + ' acres')}, calculated from its mapped boundary (${b(Math.round((p.acres || 0) * 43560).toLocaleString() + ' sq ft')}).`;
-                } else if (/class|use|vacant|type/.test(q)) {
-                    reply = p.classCode
-                        ? `DLGF property class ${b(p.classCode)}: ${b(classLabel(p.classCode))}.${VACANT_CODES.includes(p.classCode) ? ' This is a vacant-land class.' : ''}`
-                        : 'This record has no DLGF property class code.';
-                } else if (/unit|density|yield|capacity|build|residual|rlv|land value/.test(q)) {
-                    const m = computeModel();
-                    const st = lastComps && lastComps.parcel === p && lastComps.mode === devMode ? compStats(lastComps.result) : { n: 0 };
-                    const cfg = DEV_MODES[devMode];
-                    const c = m && st.n >= MIN_COMPS ? compCapacity(st, m) : null;
-                    const compNote = c
-                        ? ` Nearby comparables (${st.n}, ${devMode === 'apartment' ? 'apartment parcels' : 'neighborhoods built since 2013'}) have a median of ${b(st.med.toFixed(1) + ' ' + cfg.units + '/acre')} gross, which on the ${fmtAcres(c.acres)} acres outside floodplain, wetlands and steep slopes is ${b(c.lo.toLocaleString() + '–' + c.hi.toLocaleString() + ' ' + cfg.units)}.`
-                        : ' Open the Development Engine tab to search nearby comparables.';
-                    reply = m
-                        ? `${devMode === 'apartment' ? 'Apartment' : 'Neighborhood'} development, using your model (${m.deduct}% unbuildable, ${m.density} ${cfg.units}/acre): ${b(fmtAcres(m.net) + ' net acres')} → ${b(m.units.toLocaleString() + ' ' + cfg.units)}, residual land value ${b('$' + Math.round(m.rlv).toLocaleString())}.${compNote}`
-                        : 'There is no boundary for this parcel, so I can\'t compute yield.';
-                } else if (/school|township|tax|district|library|city/.test(q)) {
-                    reply = `Township: ${b(p.township || '—')}. Taxing city: ${b(p.taxCity || '—')}. School district: ${b(p.school || '—')}. Tax district code: ${b(p.taxDistrict || '—')}.`;
-                } else if (/where|address|located|location|county/.test(q)) {
-                    reply = `${b(p.address ? [p.address, p.city, p.zip].filter(Boolean).join(', ') : addressLine(p))}${p.commonArea ? ' — a subdivision common area, usually HOA-owned and restricted from development,' : ''} in ${b((p.county || '—') + ' County')}${p.lat != null ? ` (${p.lat.toFixed(5)}, ${p.lng.toFixed(5)})` : ''}.`;
-                } else if (/\bid\b|\bpin\b|parcel (number|id)/.test(q)) {
-                    reply = `Parcel ID ${b(p.parcel_id || '—')}, state parcel ID ${b(p.state_parcel_id || '—')}.`;
-                } else {
-                    reply = 'I can answer about this parcel\'s size, property class, location, tax districts, or yield under your model assumptions.';
-                }
-                chat.insertAdjacentHTML('beforeend', `
-                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1 mr-6">
-                        <div class="text-[10px] text-indigo-400 font-semibold">LandLens Analyst</div>
-                        <p class="text-slate-200">${reply}</p>
-                    </div>`);
+            analystBusy = true;
+            try {
+                const html = await buildAnswer(p, msg, status => { body.innerHTML = `<span class="text-slate-500">${escapeHtml(status)}</span>`; });
+                if (html == null) { bubble.remove(); return; } // the user picked another parcel meanwhile
+                body.innerHTML = html + followUps(analystMemory.topics);
+            } catch (err) {
+                console.error(err);
+                body.innerHTML = `<p>Something went wrong working that out (${escapeHtml(err.message)}). Try asking another way.</p>`;
+            } finally {
+                analystBusy = false;
                 chat.scrollTop = chat.scrollHeight;
-            }, 300);
+            }
         }
     </script>
 </body>

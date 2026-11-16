@@ -15,7 +15,11 @@ Statewide off-market land search and development underwriting for Indiana. LandL
     - *Neighborhoods:* tracts within 3 miles (widening to 5) that were a single parcel of similar acreage in IndianaMap's 2013 parcel layer and now hold at least 8 house lots. Density is homes plus platted lots per gross tract acre.
     - Closer comps count more: each is weighted 1 / (miles + 0.5), so a comp 1 mile away counts 2.3× one 3 miles away. The range (25th–75th percentile) and median are weighted, and each comp shows its share of the weight.
     - A range is shown only with at least 3 comps. Comps are outlined on the map; click one to zoom to it.
-  - **Analyst Chat:** a built-in assistant that answers from the parcel's record and your model inputs. It doesn't call any AI service and needs no API key.
+  - **Analyst Chat:** a built-in, rule-based analyst. It doesn't call any AI service and needs no API key. It pulls together the parcel record, assessed value and ownership, measured floodplain/wetlands/slope, nearby comps and the land value model, loading comps and site measurements itself when a question needs them.
+    - *Deal brief:* "Is this a good deal?" gives a bottom line with strengths, watch-outs, unknowns and next steps.
+    - *Pricing:* what the land supports, the margin at a given land price ("If I pay $800k…"), the sale price needed, and a sensitivity table for price, cost and density.
+    - *What-ifs:* reads numbers from the question ("20 units/acre at $240k with a 50 ft setback", "10% lower prices") and runs them without changing your inputs. Follow-ups such as "and at 4/acre?" build on the last scenario.
+    - Answers several topics at once, explains its method when asked "why?", and offers follow-up questions.
 - **Watchlist** saved in your browser.
 
 ## Running it
