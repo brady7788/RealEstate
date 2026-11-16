@@ -19,7 +19,9 @@ Statewide off-market land search and development underwriting for Indiana. LandL
     - *Deal brief:* "Is this a good deal?" gives a bottom line with strengths, watch-outs, unknowns and next steps.
     - *Pricing:* what the land supports, the margin at a given land price ("If I pay $800k…"), the sale price needed, and a sensitivity table for price, cost and density.
     - *What-ifs:* reads numbers from the question ("20 units/acre at $240k with a 50 ft setback", "10% lower prices") and runs them without changing your inputs. Follow-ups such as "and at 4/acre?" build on the last scenario.
-    - Answers several topics at once, explains its method when asked "why?", and offers follow-up questions.
+    - *Location:* distance and drive time to named places ("How far from Purdue?"), the nearest hospital, school, grocery, highway exit and so on, and "What's around it?". Places come from Esri's public World Geocoder and drive times from the public OSRM router, with built-in Indiana city centers as a fallback.
+    - *The site:* adjoining parcels and their owners, flagging same-owner and vacant neighbors as assemblage opportunities; shape and dimensions; and Indiana's 1/2/3% property tax caps applied to the assessed value.
+    - Plain-English definitions ("What does RLV mean?"). Answers several topics at once, explains its method when asked "why?", and offers follow-up questions.
 - **Watchlist** saved in your browser.
 
 ## Running it
