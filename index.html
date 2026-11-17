@@ -3135,24 +3135,39 @@ svg.leaflet-image-layer.leaflet-interactive path {
         const ANALYST_TOPICS = [
             // [topic, pattern] — order sets the order of sections in a multi-topic answer
             ['help', /\b(help|what can you|what do you know|capabilit\w*|what (should|can) i ask)\b/],
-            ['brief', /\b(summar\w*|overview|brief|insights?|thoughts?|opinion|good deal|bad deal|worth (it|pursuing|a look|buying)|should (i|we)|pursue|opportunit\w*|pros|cons|risks?|red flags?|concerns?|downsides?|upsides?|tell me (about|everything)|anything (i should know|notable|interesting|important)|what do you (think|make of)|first impressions?|analy[sz]\w*|evaluat\w*|underwrit\w*|verdict|recommend\w*|take on|good (site|spot|location|parcel|investment|buy|fit)|invest\w*|buy (it|this parcel)|is (it|this parcel) (good|any good|worth (it|buying|pursuing)))\b/],
-            ['distance', /\b(how far|far (from|to|away)|distance|miles? (from|to|away)|minutes? (from|to|away)|drive|driving|commute|how close|close (to|by)|near|nearby|nearest|closest|around (it|this parcel)|is around|in the (area|vicinity|neighborhood)|vicinity|surroundings|surrounding area|proximity|walking distance|away from|amenit\w*|is there an? .+ (near|close|around)|any .+ (near|close|around))\b/],
-            ['neighbors', /\b(neighbou?r\w*|adjacent|adjoin\w*|abutt\w*|next door|surrounding (parcels|land|uses|properties)|assembl\w*)\b/],
-            ['price', /\b(offer|pay|max(imum)? (price|bid|land)|land (price|cost|value)|how much (should|can|could|would)|bid|afford|residual|rlv|worth to (a )?developer|margin|profit|return|pencil|(what|how much) is (it|this parcel) worth|value (it|this parcel)|price (it|this parcel)|cost to (buy|acquire)|what is it worth)\b/],
-            ['breakeven', /\b(break ?even|minimum (sale|price|rent)|needs? to (sell|be worth)|need to sell for|what (sale )?price (do|would|will|should) (i|we) need|(sale|selling) price (do|would|will) (i|we) need|price (do|would) (i|we) need)\b/],
-            ['sensitivity', /\b(sensitiv\w*|stress\w*|downside|upside|what happens if (costs?|prices?)|swing|how risky)\b/],
-            ['capacity', /\b(units?|homes?|houses?|lots?|density|yield|capacity|how many|fit|build\w*|develop\w*|apartments?|townhomes?|subdivid\w*|build ?out)\b/],
-            ['comps', /\b(comps?|comparables?|precedents?|similar (projects?|developments?|sites?)|nearby (projects?|developments?|apartments?|neighborhoods?|subdivisions?))\b/],
-            ['constraints', /\b(flood\w*|wetlands?|slopes?|steep|setbacks?|constraints?|unbuildable|buildable|usable|unusable|developable|undevelopable|topo\w*|terrain|hilly|hills?|swamp\w*|wet|grading|environmental|open space)\b/],
-            ['assessment', /\b(assess\w*|tax(ed)? value|valuation|valued)\b|\bav\b/],
+            ['brief', /\b(risky|deal killers?|bottom line|break (it|this parcel) down|winner|dud|lemon|make an offer|would you (develop|buy|do|pursue|go after|build on)( it| this parcel)?|your take|how does (it|this parcel) look|overall|strengths?|weaknesses?|grade (it|this parcel)|rate (it|this parcel)|score (it|this parcel)|would you (develop|buy|do|pursue|go after|build on) (it|this parcel)|smart buy|go after (it|this parcel)|before (making|i make) an offer|summar\w*|overview|brief|insights?|thoughts?|opinion|good deal|bad deal|worth (it|pursuing|a look|buying)|should (i|we)|pursue|opportunit\w*|pros|cons|risks?|red flags?|concerns?|downsides?|upsides?|tell me (about|everything)|anything (i should know|notable|interesting|important)|what do you (think|make of)|first impressions?|analy[sz]\w*|evaluat\w*|underwrit\w*|verdict|recommend\w*|take on|good (site|spot|location|parcel|investment|buy|fit)|invest\w*|buy (it|this parcel)|is (it|this parcel) (good|any good|worth (it|buying|pursuing)))\b/],
+            ['distance', /\b(within (a |an )?(few|couple|\d+) (miles?|minutes?)|remote|middle of nowhere|isolated|rural|out in the country|how far out|closest towns?|anything to do|how far|far (from|to|away)|distance|miles? (from|to|away)|minutes? (from|to|away)|drive|driving|commute|how close|close (to|by)|near|nearby|nearest|closest|around (it|this parcel)|is around|in the (area|vicinity|neighborhood)|vicinity|surroundings|surrounding area|proximity|walking distance|away from|amenit\w*|is there an? .+ (near|close|around)|any .+ (near|close|around))\b/],
+            ['neighbors', /\b(neighbou?rs?\b|neighbou?ring|(parcels|land|properties|owners|lots) (around|near|next to|beside) (it|this parcel)|surrounding (owners?|parcels?|land|properties)|nearby (parcels|owners|landowners)|next to (it|this parcel)|beside (it|this parcel)|room to assemble|adjacent|adjoin\w*|abutt\w*|next door|surrounding (parcels|land|uses|properties)|assembl\w*)\b/],
+            ['price', /\b(make money|still (make|work)|(this parcel|land) budget|budget (for|on) (this parcel|land)|land budget|budget for (the )?land|price per acre|per acre (can|could|should) i|justify|paid|paying|if i paid|offer|pay|max(imum)? (price|bid|land)|land (price|cost|value)|how much (should|can|could|would) (i|we) (pay|offer|spend|bid)|bid|afford|residual|rlv|worth to (a )?developer|margin|profit|return|pencil|(what|how much) is (it|this parcel) worth|value (it|this parcel)|price (it|this parcel)|cost to (buy|acquire)|what is it worth)\b/],
+            ['breakeven', /\b((rents?|prices?|sale prices?|values?) (need|needs|have|has) to be|need to (rent|sell) for|what (rent|price|sales price|sale price) (do|would) (i|we) need|break ?even|minimum (sale|price|rent)|needs? to (sell|be worth)|need to sell for|what (sale )?price (do|would|will|should) (i|we) need|(sale|selling) price (do|would|will) (i|we) need|price (do|would) (i|we) need)\b/],
+            ['sensitivity', /\b((change|changes|move|moves|swing|swings) if|if (prices?|costs?|rents?|values?) (fall|drop|rise|go up|go down|increase|decrease|fell|dropped|rose)|sensitiv\w*|stress\w*|downside|upside|what happens if (costs?|prices?)|swing|how risky)\b/],
+            ['capacity', /\b((put|build|develop|do|fit) (a |an )?(neighborhood|subdivision|community|complex)|built|subdivision|support (a |an )?(subdivision|apartments?|neighborhood|development)|units?|homes?|houses?|lots?|density|yield|capacity|how many|fit|build\w*|develop\w*|apartments?|townhomes?|subdivid\w*|build ?out)\b/],
+            ['comps', /\b((developed|built) (around|near|nearby)|similar (apartment |housing |residential )?(projects?|developments?|complexes|communities)|recent(ly)? (developed|built|projects?|developments?|subdivisions?)|new (construction|developments?|subdivisions?)|nearby (subdivisions?|apartment complexes)|comps?|comparables?|precedents?|similar (projects?|developments?|sites?)|nearby (projects?|developments?|apartments?|neighborhoods?|subdivisions?))\b/],
+            ['constraints', /\b(can (i|we|you) (actually )?use|how much (of (it|this parcel) )?(is|can be) (used|usable|built on)|flat|floodway|flood\w*|wetlands?|slopes?|steep|setbacks?|constraints?|unbuildable|buildable|usable|unusable|developable|undevelopable|topo\w*|terrain|hilly|hills?|swamp\w*|wet|grading|environmental|open space)\b/],
+            ['assessment', /\b(county (value|values|valued)|valued at|value it at|on the tax roll|assessor'?s? value|assess\w*|tax(ed)? value|valuation|valued)\b|\bav\b/],
             ['owner', /\b(owners?|owned|who (owns|has|is the owner)|whose|landowner|mailing|contact|reach|motivat\w*|off.?market|seller|tenure|how long (have|has|did)|acquired|transfer\w*|llc|entity|absentee)\b/],
             ['unconnected', /\b(zoning|zoned|rezon\w*|permitted|allowed uses?|sales? history|sold for|last sold|last sale|listing|listed)\b/],
-            ['shape', /\b(shape|dimensions?|frontage|how wide|how deep|width|depth|perimeter|irregular|narrow|layout)\b/],
+            ['returns', /\b(margins?|return on cost|yield on cost|irr|roi|returns?|profit margin|how much (profit|money)|development spread|equity multiple)\b/],
+            ['costs', /\b(project cost|whole project|(whole|entire|total) (project|thing|development) (cost|costs)|cost (in total|altogether)|total budget|how much (to|will it take to|would it take to|does it take to) build|build.?out cost|hard costs?|construction budget|development budget|project budget|cost to (build|develop)|total (development |project )?cost|construction cost|development cost|how much (will|would|does) it cost|cost per (unit|home|door))\b/],
+            ['revenue', /\b(bring in|gross|total (sales|revenue|income)|revenue|sellout|sell.?out value|gross sales|total sales|stabilized value|project (be )?worth when)\b/],
+            ['bestuse', /\b(product type|makes the most sense|what makes sense to build|what would you build|best (thing|product|type|use) to build|what (kind|type) of (development|project|product) (would|should|makes sense|works)|best use|highest and best|apartments or (houses|homes|single.?family)|(houses|homes|single.?family) or apartments|what should (i|we) build|which (product|use|type) (works|is) best|better for (single.?family|multi.?family|apartments|homes))\b/],
+            ['jurisdiction', /\b((within|inside|in) (the )?(city|town)( limits)?\s*\??$|in town or|town or (the )?county|city limits|town limits|incorporated|unincorporated|annex\w*|jurisdiction|in the city or (the )?county)\b/],
+            ['utilities', /\b(utilit\w*|sewer|septic|city water|well water|water (and|&) sewer|water service|electric\w*|natural gas|gas service|broadband|internet|fiber)\b/],
+            ['structures', /\b(empty|vacant (land|lot)|anything (built )?on (it|this parcel)|is (it|this parcel) (empty|clear|cleared|wooded)|tear (\w+ )?down|knock (\w+ )?down|remove (any )?(buildings?|structures?)|any buildings|are there (any )?buildings|buildings? on|house on|homes? on (it|this parcel)|barns?|structures?|improvements on|existing (buildings?|improvements|structures?)|demolish\w*|demolition|tear ?down|raw land)\b/],
+            ['market', /\b(rental market|how (strong|hot|good|healthy) is the (\w+ )?market|demand (like )?for|selling for|sale prices? (in|around|near)|home (prices|values)|what (are )?homes? (go|going|sell) for|rents? (like|around|in)|rents?|rental rates?|vacancy|absorption|demand|market (trends?|conditions|like)|homes? (are )?selling for|growing area|hot market)\b/],
+            ['soils', /\b(soils?|perc\w*|bedrock|geotech\w*)\b/],
+            ['traffic', /\b(traffic|curb cut|road access|access (to|from) the road|what road|busy road|frontage road|aadt)\b/],
+            ['crime', /\b(crime|safe (area|neighborhood|place)|unsafe|dangerous|is (it|the area) safe)\b/],
+            ['demographics', /\b(growing|growth|population trends?|incomes?|population|demographic\w*|median income|households?|who lives|income levels?)\b/],
+            ['timeline', /\b(how long (will|does|would|to)( it)? (take|get|rezone|approve)|approval process|entitlement (timeline|process)|how long (are|is) (approvals?|permitting|the process)|permitting timeline)\b/],
+            ['environment', /\b(contaminat\w*|brownfield|phase (1|i|one)|environmental (issues?|risks?|problems?|concerns?)|hazardous|pollut\w*|underground tanks?)\b/],
+            ['finance', /\b(financ\w*|loans?|lenders?|equity|interest rates?|ltv|ltc|debt)\b/],
+            ['shape', /\b(skinny|long and|odd.?shaped|rectangular|triangular|flag lot|square shaped|shape|dimensions?|frontage|how wide|how deep|width|depth|perimeter|irregular|narrow|layout)\b/],
             ['taxes', /\b(property tax\w*|taxes|tax bill|tax caps?|circuit breaker|how much tax|annual tax)\b/],
-            ['size', /\b(acres?|acreage|size|how big|how large|how much land|square (feet|footage)|sq ?ft)\b/],
-            ['class', /\b(property class|class code|land use|vacant|what type|classif\w*|use code)\b/],
-            ['districts', /\b(school|township|tax district|taxing|library)\b/],
-            ['location', /\b(where is (it|this parcel)|address|located|location|what (city|town|county)|which (city|town|county)|coordinates|lat(itude)?|long(itude)?)\b/],
+            ['size', /\b(how many acres|acres is it|acreage|size|how big|how large|how much land is (there|it)|square (feet|footage)|sq ?ft)\b/],
+            ['class', /\b(used for|current use|currently (used|farmed)|being farmed|\bag\b|farm ?land|farm ground|agricultur\w*|tillable|crop ?land|property class|class code|land use|vacant|what type|classif\w*|use code)\b/],
+            ['districts', /\b(school (district|corporation|corp|system)|which schools?|what schools?|schools? would (kids|children)|kids go|township|tax district|taxing|library)\b/],
+            ['location', /\b(where is (it|this parcel)|where (is it|is this parcel) located|address|what (city|town|county)|which (city|town|county)|coordinates|latitude|longitude)\b/],
             ['ids', /\b(parcel (number|id)|\bpin\b|state parcel)\b|\bid\b/]
         ];
 
@@ -3164,8 +3179,9 @@ svg.leaflet-image-layer.leaflet-interactive path {
              [/\bthat's\b/g, 'that is'], [/\bthere's\b/g, 'there is'], [/\bisn't\b/g, 'is not'], [/\bdoesn't\b/g, 'does not'], [/\bdon't\b/g, 'do not'],
              [/\bcan't\b/g, 'cannot'], [/\bwon't\b/g, 'will not'], [/\bi'm\b/g, 'i am'], [/\bi'd\b/g, 'i would'], [/\bwanna\b/g, 'want to'], [/\bgonna\b/g, 'going to']]
                 .forEach(([re, to]) => { q = q.replace(re, to); });
-            q = q.replace(/\b(this|the|that|my|our|your)\s+(plot|lot|land|tract|acreage|property|site|parcel|piece|ground|spot|farm|field)(\s+of\s+(land|ground|property))?\b/g, 'this parcel');
-            q = q.replace(/\bhere\b/g, 'this parcel');
+            q = q.replace(/[a-z]+/g, correctSpelling);
+            q = q.replace(/\b(this|the|that|my|our|your)\s+(plot|lot|land|tract|property|site|parcel|piece|ground|spot|farm|field)(\s+of\s+(land|ground|property))?\b/g, 'this parcel');
+            q = q.replace(/\bhere\b/g, 'this parcel').replace(/\b(this|that)\s*([?.!]|$)/g, 'this parcel$2');
             return q.replace(/\s+/g, ' ').trim();
         }
 
@@ -3203,17 +3219,17 @@ svg.leaflet-image-layer.leaflet-interactive path {
             const cur = id => parseFloat(document.getElementById(id).value) || 0;
             const rel = (nouns, id, label) => {
                 const m = q.match(new RegExp(String.raw`(\d+(?:\.\d+)?)\s*%\s*(more|higher|greater|up|increase|less|lower|fewer|down|decrease|cheaper)\s*(?:in\s*)?(?:` + nouns + ')'))
-                    || q.match(new RegExp('(?:' + nouns + String.raw`)\s*(?:go|goes|are|is|come in)?\s*(up|down|higher|lower)\s*(?:by)?\s*(\d+(?:\.\d+)?)\s*%`));
+                    || q.match(new RegExp('(?:' + nouns + String.raw`)\s*(?:go|goes|are|is|come in)?\s*(up|down|higher|lower|drop|drops|fall|falls|rise|rises|increase|increases|decrease|decreases|climb|climbs|jump|jumps)\s*(?:by)?\s*(\d+(?:\.\d+)?)\s*%`));
                 if (!m || over[id] != null) return;
                 const pct = +(isFinite(+m[1]) ? m[1] : m[2]), dir = isFinite(+m[1]) ? m[2] : m[1];
-                const k = /more|higher|greater|up|increase/.test(dir) ? 1 + pct / 100 : 1 - pct / 100;
+                const k = /more|higher|greater|up|increase|rise|climb|jump/.test(dir) ? 1 + pct / 100 : 1 - pct / 100;
                 over[id] = cur(id) * k; labels[id] = `${label} ${k > 1 ? '+' : '−'}${pct}%`;
             };
             rel('density|units|homes|lots|doors', 'calc-density', 'density');
             rel('sale prices?|prices?|rents?|values?|revenue', 'calc-rev', 'sale price');
             rel('costs?|construction|build costs?', 'calc-cost', 'cost');
             // A land price the user is considering paying
-            const land = grab(new RegExp(String.raw`(?:pay|paying|asking|ask|list(?:ed|ing)?(?: price)?|land (?:price|cost)|offer(?:ing)?|purchase(?: price)?|buy (?:it )?for|acquire (?:it )?for|costs? me|for)\s*(?:of|at|is|=)?\s*` + MONEY), m => parseMoney(m[1], m[2]));
+            const land = grab(new RegExp(String.raw`(?:pay|paid|paying|asking|ask|list(?:ed|ing)?(?: price)?|land (?:price|cost)|offer(?:ing)?|purchase(?: price)?|buy (?:it )?for|acquire (?:it )?for|costs? me|for)\s*(?:of|at|is|=)?\s*` + MONEY), m => parseMoney(m[1], m[2]));
             const landPrice = land != null && land >= 1000 && land !== over['calc-rev'] && land !== over['calc-cost'] ? land : null;
             return { over, labels, landPrice };
         }
@@ -3256,7 +3272,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
         }
 
         function sensitivityTable(base) {
-            const v = id => parseFloat(document.getElementById(id).value) || 0;
+            const v = id => base[id] != null ? base[id] : (parseFloat(document.getElementById(id).value) || 0);
             const cases = [
                 ['Sale price −10%', { 'calc-rev': v('calc-rev') * 0.9 }], ['Sale price +10%', { 'calc-rev': v('calc-rev') * 1.1 }],
                 ['Cost +10%', { 'calc-cost': v('calc-cost') * 1.1 }], ['Cost −10%', { 'calc-cost': v('calc-cost') * 0.9 }],
@@ -3291,6 +3307,9 @@ svg.leaflet-image-layer.leaflet-interactive path {
                 `${strong('Comps, capacity and constraints')}: "How many homes fit?", "Show me the comps", "How much is in the floodplain?"`,
                 `${strong('Location')}: "How far is it from Purdue?", "Drive time to downtown Indianapolis", "Nearest hospital", "What's around it?"`,
                 `${strong('The site')}: "Who owns the land next door?" (assemblage), "What shape is it?", "What are the property taxes?"`,
+                `${strong('Returns, costs and best use')}: "What are the returns?", "What will it cost to build?", "Apartments or houses?"`,
+                `${strong('Services')}: "Is it in city limits?", "Does it have sewer?", "Are there buildings on it?"`,
+                `${strong('Anything else')}: market, soils, traffic, crime, demographics, approvals, environmental and financing questions get an honest answer and where to find the data.`,
                 `${strong('Definitions')}: "What does RLV mean?", "What's a setback?"`,
                 `${strong('Record')}: assessed value, owner and ownership signals, size, class, location, tax districts, IDs.`,
                 `Ask "why?" after any answer to see how I got there.`
@@ -3355,6 +3374,44 @@ svg.leaflet-image-layer.leaflet-interactive path {
             return found.length ? `<p class="text-slate-400">What-if: ${found.map(f => escapeHtml(f)).join(', ')}. Your inputs aren't changed${base && base.m ? `; at your current inputs it's ${base.m.units.toLocaleString()} ${DEV_MODES[devMode].units} and ${money(base.m.rlv)} land value` : ''}.</p>` : '';
         }
 
+        // Which topics a question is about: hand-written patterns first, then the example matcher fills in or adds
+        function analystTopics(msg, p) {
+            const q = normalizeQuestion(msg);
+            const qTopics = q.replace(/\d+(?:\.\d+)?\s*(?:units?|homes?|houses?|lots?|du|doors?)?\s*(?:\/|per|an|a)\s*(?:acre|ac)\b/g, ' density ');
+            let topics = ANALYST_TOPICS.filter(([, re]) => re.test(qTopics)).map(([t]) => t);
+            // A city or landmark named in the question ("how far is Muncie?", or just "Muncie?") is a distance question
+            if (!topics.includes('distance') && p.lat != null && findNamedPlaces(msg, p).found.length && (/\b(far|close|near|miles?|minutes?|drive|from|to|distance)\b/.test(q) || q.split(' ').length <= 4)) topics.push('distance');
+            if (topics.includes('distance') && (topics.includes('comps') || topics.includes('neighbors')) && !/\b(how far|how close|distance|drive|nearest|closest|what is (near|around)|amenit\w*)\b/.test(q) && !findNamedPlaces(msg, p).found.length) topics = topics.filter(t => t !== 'distance');
+            const sc = parseScenario(q);
+            if (sc.landPrice != null && !topics.includes('price')) topics.unshift('price');
+            if (Object.keys(sc.over).length && !topics.some(t => ['price', 'brief', 'breakeven', 'sensitivity', 'returns', 'costs', 'revenue'].includes(t))) topics.push('price');
+            const ranked = classifyIntents(msg);
+            const top = ranked[0];
+            if (!topics.length) {
+                if (top && top.score >= NLU_MIN) topics = ranked.filter(r => r.score >= Math.max(NLU_MIN, top.score * 0.85)).slice(0, 2).map(r => r.intent);
+            } else if (top && top.score >= NLU_STRONG && !topics.includes(top.intent)) topics.push(top.intent);
+            // Tidy overlaps between related topics
+            // "What if prices drop 15%" is one scenario to run, not a request for the sensitivity table
+            if (Object.keys(sc.over).length && topics.includes('sensitivity') && !/\b(sensitiv\w*|stress|downside|swing)\b/.test(q)) topics = topics.map(t => t === 'sensitivity' ? 'price' : t);
+            if (/\bhow many acres\b/.test(q)) topics = topics.filter(t => t !== 'capacity');
+            // Paying a price, or setting a profit target, is answered in the pricing section; don't repeat it as returns
+            if (topics.includes('returns') && (sc.landPrice != null || sc.over['calc-profit'] != null) && !/\b(returns?|roi|irr|return on cost|yield on cost)\b/.test(q)) topics = topics.filter(t => t !== 'returns');
+            if (topics.includes('returns') && !/\b(pay|offer|bid|afford|worth)\b/.test(q)) topics = topics.filter(t => t !== 'price');
+            if (topics.includes('structures') && !/\bhow many\b/.test(q)) topics = topics.filter(t => t !== 'capacity');
+            if ((topics.includes('costs') || topics.includes('bestuse')) && !/\bhow many\b/.test(q)) topics = topics.filter(t => t !== 'capacity');
+            // A vague "around here / in the area" doesn't make a distance question when the question is about something else
+            const strongDistance = /\b(how far|how close|far (from|to|away)|distance|drive|driving|commute|minutes?|miles?|nearest|closest|walk\w*|amenit\w*|convenien\w*)\b/.test(q)
+                || PLACE_CATEGORIES.some(([re]) => re.test(q)) || (p.lat != null && findNamedPlaces(msg, p).found.length > 0)
+                || /^\s*(what is|what are|what's) (near|around|nearby|in the (area|neighborhood))/.test(q) || /\b(anything|what) (near|nearby|around)\b/.test(q);
+            if (topics.includes('distance') && topics.length > 1 && !strongDistance) topics = topics.filter(t => t !== 'distance');
+            if (topics.some(t => ['comps', 'market', 'bestuse', 'costs', 'returns'].includes(t)) && !/\bhow many\b/.test(q)) topics = topics.filter(t => t !== 'capacity' || topics.length === 1);
+            if (topics.includes('neighbors') && /\b(next to|adjacent|neighbor|beside|around it|surrounding)\b/.test(q)) topics = topics.filter(t => t !== 'brief');
+            if (topics.includes('market') && /\bon the market\b/.test(q)) topics = topics.filter(t => t !== 'market');
+            if (topics.includes('distance') && topics.includes('market') && !/\b(rents?|vacancy|absorption|demand|selling|prices?)\b/.test(q)) topics = topics.filter(t => t !== 'market');
+            return [...new Set(topics)];
+        }
+        const NLU_MIN = 0.3, NLU_STRONG = 0.7, NLU_SMOOTH = 1.5;
+
         async function buildAnswer(p, msg, onStatus) {
             const q = normalizeQuestion(msg);
             const cfg = DEV_MODES[devMode];
@@ -3372,11 +3429,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
             const { over: newOver, labels: newLabels, landPrice: newLand } = parseScenario(q);
             const newFound = Object.keys(newOver).length > 0;
-            const qTopics = q.replace(/\d+(?:\.\d+)?\s*(?:units?|homes?|houses?|lots?|du|doors?)?\s*(?:\/|per|an|a)\s*(?:acre|ac)\b/g, ' density ');
-            let topics = ANALYST_TOPICS.filter(([, re]) => re.test(qTopics)).map(([t]) => t);
-            // A city or landmark named in the question ("how far is Muncie?", or just "Muncie?") is a distance question
-            if (!topics.includes('distance') && p.lat != null && findNamedPlaces(msg, p).found.length && (/\b(far|close|near|miles?|minutes?|drive|from|to|distance)\b/.test(q) || q.split(' ').length <= 4)) topics.push('distance');
-            if (topics.includes('distance') && (topics.includes('comps') || topics.includes('neighbors')) && !/\b(how far|how close|distance|drive|nearest|closest|what is (near|around)|amenit\w*)\b/.test(q) && !findNamedPlaces(msg, p).found.length) topics = topics.filter(t => t !== 'distance');
+            let topics = analystTopics(msg, p);
             const isFollowUp = /^\s*(and|what about|how about|ok(ay)?|now|then|also|same|at|with)\b/.test(q) || (!topics.length && (newFound || newLand != null));
             // Numbers carry over when the question builds on the last one ("and at 4/acre?"); "what if…" starts a fresh scenario
             const carry = isFollowUp && !(/^\s*(what if|suppose|imagine|say)\b/.test(q) && !/\b(also|too|as well|still)\b/.test(q));
@@ -3408,11 +3461,11 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
             // Gather what the answer needs
             const needComps = topics.some(t => ['brief', 'capacity', 'comps', 'price', 'sensitivity', 'breakeven'].includes(t));
-            const needSite = topics.some(t => ['brief', 'capacity', 'constraints', 'price', 'sensitivity', 'breakeven'].includes(t));
+            const needSite = topics.some(t => ['brief', 'capacity', 'constraints', 'price', 'sensitivity', 'breakeven', 'returns', 'costs', 'revenue', 'bestuse'].includes(t));
             let r = null, site = p._site || null;
             if (needSite && !site && p.rings) { onStatus('Measuring floodplain, wetlands and slope…'); site = await analystSite(p); }
             if (needComps) { onStatus(`Pulling nearby ${devMode === 'apartment' ? 'apartment' : 'neighborhood'} comparables…`); r = await analystComps(p); }
-            if ((needComps || needSite || ['owner', 'assessment', 'taxes', 'neighbors'].some(t => topics.includes(t))) && p.assess === undefined) { onStatus('Loading the assessor record…'); await withTimeout(loadAssessmentFor(p), 8000); }
+            if ((needComps || needSite || ['owner', 'assessment', 'taxes', 'neighbors', 'structures'].some(t => topics.includes(t))) && p.assess === undefined) { onStatus('Loading the assessor record…'); await withTimeout(loadAssessmentFor(p), 8000); }
             if (selectedParcel !== p) return null;
             const st = r ? compStats(r) : null;
             const base = { m: computeModel() };
@@ -3425,6 +3478,14 @@ svg.leaflet-image-layer.leaflet-interactive path {
                 else if (t === 'neighbors') out.push(await answerNeighbors(p, onStatus));
                 else if (t === 'shape') out.push(answerShape(p));
                 else if (t === 'taxes') out.push(answerTaxes(p));
+                else if (t === 'returns') out.push(answerReturns(p, m, over, landPrice, cfg));
+                else if (t === 'costs') out.push(answerCosts(p, m, over, landPrice, cfg));
+                else if (t === 'revenue') out.push(answerRevenue(p, m, over, cfg));
+                else if (t === 'bestuse') out.push(answerBestUse(p, m));
+                else if (t === 'jurisdiction') out.push(answerJurisdiction(p));
+                else if (t === 'utilities') out.push(answerUtilities(p));
+                else if (t === 'structures') out.push(answerStructures(p));
+                else if (GAP_ANSWERS[t]) out.push(answerGap(t));
                 else if (t === 'brief') out.push(answerBrief(p, m, st, site, over, landPrice, cfg));
                 else if (t === 'price') out.push(m ? section('What the land supports', bullets(priceLines(p, m, over, landPrice, cfg))) : section('Pricing', '<p>No boundary, so I can\'t run the land value model.</p>'));
                 else if (t === 'breakeven') {
@@ -3561,6 +3622,12 @@ svg.leaflet-image-layer.leaflet-interactive path {
                 neighbors: 'Adjoining parcels are the IndianaMap parcels whose boundaries touch this one. Their owners come from the county assessor file; matching owner names flag a possible assemblage.',
                 shape: 'Width and depth come from the smallest rectangle (tried every 5°) that contains the boundary; how much of that rectangle the parcel fills shows how regular it is.',
                 taxes: 'Indiana caps property tax at 1% of gross assessed value for homesteads, 2% for other residential and farmland, and 3% for other property. The cap is an upper bound; the real bill depends on local rates.',
+                returns: 'Profit = sales − building cost − site and soft costs − land. Margin is profit ÷ sales; return on cost is profit ÷ total cost. With no land price given, the land is priced at what the model says it supports.',
+                costs: 'Total cost = units × your cost per unit + site and soft costs (+ land, if you named a price).',
+                bestuse: 'Runs the land value model twice: your current development type with your inputs, and the other type with its default assumptions, on the same measured buildable land.',
+                jurisdiction: 'Read from the taxing city the county assessor records for the parcel: a named city or town means it is inside municipal limits.',
+                utilities: 'LandLens has no utility maps; the answer is a pointer based on whether the parcel is inside a city or town.',
+                structures: 'Based on the assessed value of improvements: anything above $0 means the assessor carries a building.',
                 assessment: 'Assessed values come from the county assessor file. Land under about $4,000/acre is almost always on Indiana\'s farmland formula (2025 base $2,120/acre), which reflects use, not market value.'
             };
             const parts = topics.map(t => notes[t]).filter(Boolean);
@@ -3581,7 +3648,14 @@ svg.leaflet-image-layer.leaflet-interactive path {
                 distance: ["What's around it?", 'How far from downtown Indianapolis?', 'Is this a good deal?'],
                 neighbors: ['Who owns it?', 'What shape is it?', 'Is this a good deal?'],
                 shape: ['How many units fit?', 'Who owns the land next door?'],
-                taxes: ['Who owns it?', 'What can I pay for it?']
+                taxes: ['Who owns it?', 'What can I pay for it?'],
+                returns: ['Sensitivity', 'What will it cost to build?', 'Apartments or houses?'],
+                costs: ['What are the returns?', 'What sale price do I need?'],
+                revenue: ['What are the returns?', 'What will it cost to build?'],
+                bestuse: ['How many units fit?', 'What are the returns?'],
+                jurisdiction: ['Does it have sewer?', 'Who owns it?'],
+                utilities: ['Is it in city limits?', "What's around it?"],
+                structures: ['Who owns it?', 'Is this a good deal?']
             };
             const out = [];
             topics.forEach(t => (pick[t] || []).forEach(s => { if (!out.includes(s)) out.push(s); }));
@@ -3644,6 +3718,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
             const inIndiana = !/^[A-Z]{2}$/.test(tag);
             return { name, key: placeKey(name), lat: +lat, lng: +lng, state: inIndiana ? 'IN' : tag, county: inIndiana ? tag : null };
         });
+        const PLACE_WORDS = new Set(PLACE_DATA.toLowerCase().split(/[^a-z]+/));
         const PLACE_KEYS = [...new Set(PLACES.map(pl => pl.key))].sort((a, b) => b.length - a.length);
         const PLACE_ALIASES = { 'indy': 'indianapolis', 'naptown': 'indianapolis', 'fort wayne': 'fort wayne', 'ft wayne': 'fort wayne', 'st louis': 'st louis', 'saint louis': 'st louis' };
         // Place names that are also everyday words only count when capitalized in the question
@@ -3659,23 +3734,28 @@ svg.leaflet-image-layer.leaflet-interactive path {
             [/\b(downtown (indy|indianapolis)|monument circle)\b/, 'Downtown Indianapolis (Monument Circle)', 39.7684, -86.1581]
         ];
         const PLACE_CATEGORIES = [
-            [/hospital|emergency room|\ber\b|medical center/, 'Hospital', 'hospital'],
-            [/elementary|middle school|high school|schools?\b/, 'School', 'school'],
-            [/grocery|groceries|supermarket|food store|kroger|meijer|walmart|aldi/, 'Grocery', 'grocery store'],
+            [/hospital|clinic|urgent care|emergency room|\ber\b|medical|doctor|health ?care/, 'Hospital', 'hospital'],
+            [/schools?\b|elementary|middle school|high school|k-?12|education/, 'School', 'school'],
+            [/grocer|supermarket|food store|kroger|meijer|walmart|aldi|costco|whole foods|trader joe/, 'Grocery', 'grocery store'],
             [/airports?\b/, 'Airport', 'airport'],
-            [/interstate|highway|freeway|exit|on.?ramp|\bi-?\d+\b/, 'Highway Exit', 'highway exit'],
+            [/interstate|highway|freeway|expressway|exit|on.?ramp|major road|\bi-?\d+\b|\bus-?\d+\b|\bsr-?\d+\b/, 'Highway Exit', 'highway exit'],
             [/universit|college|campus/, 'College', 'college or university'],
-            [/parks?\b|playground|trail/, 'Park', 'park'],
-            [/gas station|\bgas\b|fuel/, 'Gas Station', 'gas station'],
+            [/parks?\b|playground|trails?\b|green ?space|recreation|golf/, 'Park', 'park'],
+            [/gas station|\bgas\b|fuel|convenience store/, 'Gas Station', 'gas station'],
             [/pharmac|drug ?store|cvs|walgreens/, 'Pharmacy', 'pharmacy'],
             [/coffee|starbucks|cafe/, 'Coffee Shop', 'coffee shop'],
-            [/restaurant|dining|places to eat|fast food/, 'Restaurant', 'restaurant'],
-            [/\bbanks?\b/, 'Bank', 'bank'],
+            [/restaurants?|dining|places to eat|food|fast food|\bbars?\b|pubs?\b/, 'Restaurant', 'restaurant'],
+            [/\bbanks?\b|\batms?\b/, 'Bank', 'bank'],
             [/librar/, 'Library', 'library'],
             [/fire station|fire dep/, 'Fire Station', 'fire station'],
             [/police/, 'Police Station', 'police station'],
             [/church/, 'Church', 'church'],
-            [/shopping|\bmall\b|retail|stores\b/, 'Shopping Center', 'shopping center']
+            [/shops?\b|shopping|stores?\b|retail|\bmalls?\b|outlets?|strip (center|mall)|target\b/, 'Shopping Center', 'shopping center'],
+            [/\bbus\b|transit|indygo|train|rail station|amtrak|public transportation/, 'Bus Station', 'transit stop'],
+            [/\bgyms?\b|fitness|ymca/, 'Gym', 'gym'],
+            [/day ?care|child ?care|preschool/, 'Child Care', 'child care'],
+            [/hotels?|motels?|lodging/, 'Hotel', 'hotel'],
+            [/post office|usps/, 'Post Office', 'post office']
         ];
         const AMENITY_SET = ['Grocery', 'School', 'Hospital', 'Highway Exit', 'Park'];
 
@@ -3767,8 +3847,11 @@ svg.leaflet-image-layer.leaflet-interactive path {
             // "how far from Kroger on Main Street" names a specific one, which is looked up as itself
             const askingCategory = /\b(nearest|closest|any|is there|are there|where is the)\b/.test(nq);
             let phrases = extractPlacePhrases(rest);
+            const isGeneric = ph => { const hit = PLACE_CATEGORIES.find(([re]) => re.test(ph)); return hit && !ph.replace(hit[0], ' ').replace(/\b(the|a|an|nearest|closest|good|major|local|big|any|some|nearby|close|by|stations?|stops?|centers?|places?|areas?|store|stores|shops?)\b/g, '').trim(); };
             if (askingCategory) phrases = phrases.filter(ph => !PLACE_CATEGORIES.some(([re]) => re.test(ph)));
+            else phrases = phrases.filter(ph => !isGeneric(ph));
             const cats = askingCategory || (!found.length && !phrases.length) ? PLACE_CATEGORIES.filter(([re]) => re.test(rest)) : [];
+            if (!askingCategory && !cats.length && !found.length) extractPlacePhrases(rest).filter(isGeneric).forEach(ph => { const hit = PLACE_CATEGORIES.find(([re]) => re.test(ph)); if (hit && !cats.includes(hit)) cats.push(hit); });
             const wantsOverview = !found.length && !phrases.length && !cats.length;
             const out = [];
 
@@ -3921,6 +4004,316 @@ svg.leaflet-image-layer.leaflet-interactive path {
             const term = q.replace(/^\s*(what('s| is| are| does)|define|meaning of|explain( what)?)\s+(a |an |the )?/, '').replace(/\s*(mean|stand for)?\??\s*$/, '');
             const hit = GLOSSARY.find(([re]) => re.test(term));
             return hit ? section(hit[1], `<p>${escapeHtml(hit[2])}</p>`) : null;
+        }
+
+        // ---- Understanding the question ----
+        // Two layers. Hand-written patterns (ANALYST_TOPICS) catch phrasings that are unambiguous. Behind them, an
+        // example-based matcher compares the question with a few hundred example questions a developer might ask,
+        // grouped by intent: words are reduced to a common form (shops/stores/retail → store, nearby/close by/around → near),
+        // rare words count more than common ones, and the intents whose closest example overlaps best are chosen.
+        const NLU_STOP = new Set(('a an the is are was were be been being am do does did of to in on at for by with it its this that these those there '
+            + 'i me my we our us you your can could would should will may might please tell show give let know and or but so than then about some just also '
+            + 'too get got have has had want need like look really kind sort lot lots one thing things anything something going go any parcel').split(' '));
+        const NLU_SYNONYMS = {
+            near: 'near', convenient: 'near', nearby: 'near', close: 'near', closeby: 'near', around: 'near', vicinity: 'near', proximity: 'near', surrounding: 'near', surroundings: 'near', neighborhood: 'near', walkable: 'near', walking: 'near', amenity: 'near', amenities: 'near',
+            nearest: 'nearest', closest: 'nearest',
+            shop: 'store', shops: 'store', store: 'store', stores: 'store', retail: 'store', retailer: 'store', shopping: 'store', mall: 'store', outlet: 'store', target: 'store',
+            grocery: 'grocery', groceries: 'grocery', supermarket: 'grocery', kroger: 'grocery', meijer: 'grocery', aldi: 'grocery', walmart: 'grocery',
+            school: 'school', schools: 'school', elementary: 'school', highschool: 'school', education: 'school', k12: 'school',
+            university: 'college', college: 'college', campus: 'college',
+            hospital: 'hospital', clinic: 'hospital', medical: 'hospital', doctor: 'hospital', urgent: 'hospital', healthcare: 'hospital',
+            restaurant: 'restaurant', restaurants: 'restaurant', dining: 'restaurant', eat: 'restaurant', food: 'restaurant', bar: 'restaurant',
+            park: 'park', parks: 'park', trail: 'park', trails: 'park', playground: 'park', recreation: 'park', golf: 'park',
+            highway: 'highway', interstate: 'highway', freeway: 'highway', expressway: 'highway', exit: 'highway', ramp: 'highway',
+            bus: 'transit', transit: 'transit', train: 'transit', rail: 'transit', indygo: 'transit',
+            far: 'distance', distance: 'distance', mile: 'distance', miles: 'distance', minute: 'distance', minutes: 'distance', drive: 'distance', driving: 'distance', commute: 'distance', away: 'distance',
+            owner: 'owner', owns: 'owner', own: 'owner', owned: 'owner', landowner: 'owner', seller: 'owner', whose: 'owner', title: 'owner', holder: 'owner',
+            price: 'price', pay: 'pay', offer: 'pay', bid: 'pay', spend: 'pay', afford: 'pay', acquisition: 'pay', acquire: 'pay',
+            worth: 'value', value: 'value', valuation: 'value', valued: 'value', appraise: 'value', appraisal: 'value',
+            assessed: 'assess', assessment: 'assess', assessor: 'assess', av: 'assess',
+            tax: 'tax', taxes: 'tax', taxed: 'tax',
+            unit: 'unit', units: 'unit', apartment: 'unit', apartments: 'unit', apt: 'unit', door: 'unit', doors: 'unit', multifamily: 'unit',
+            home: 'home', homes: 'home', house: 'home', houses: 'home', townhome: 'home', townhouse: 'home', lots: 'home', rooftop: 'home', singlefamily: 'home', subdivision: 'home', subdivide: 'home',
+            density: 'density', dense: 'density', yield: 'capacity', capacity: 'capacity', fit: 'capacity', many: 'many', buildout: 'capacity',
+            build: 'build', building: 'build', built: 'build', develop: 'build', development: 'build', construct: 'build', construction: 'build',
+            flood: 'flood', floodplain: 'flood', floodzone: 'flood', fema: 'flood',
+            wetland: 'wetland', wetlands: 'wetland', swamp: 'wetland', marsh: 'wetland', wet: 'wetland',
+            slope: 'slope', slopes: 'slope', steep: 'slope', hilly: 'slope', hill: 'slope', topography: 'slope', topo: 'slope', terrain: 'slope', grading: 'slope',
+            buildings: 'structure', buildable: 'buildable', usable: 'buildable', developable: 'buildable', unbuildable: 'buildable', unusable: 'buildable', undevelopable: 'buildable', constraint: 'buildable', constraints: 'buildable', setback: 'buildable', setbacks: 'buildable',
+            comp: 'comp', comps: 'comp', comparable: 'comp', comparables: 'comp', precedent: 'comp',
+            zoning: 'zoning', zoned: 'zoning', zone: 'zoning', rezone: 'zoning', rezoning: 'zoning', variance: 'zoning', entitle: 'zoning', entitlement: 'zoning', entitlements: 'zoning', permitted: 'zoning', allowed: 'zoning',
+            sold: 'sale', sale: 'sale', sales: 'sale', sell: 'sale', selling: 'sale', listed: 'sale', listing: 'sale', market: 'market',
+            acre: 'acre', acres: 'acre', acreage: 'acre', size: 'size', big: 'size', large: 'size', small: 'size', sqft: 'size', footage: 'size',
+            shape: 'shape', dimension: 'shape', dimensions: 'shape', wide: 'shape', width: 'shape', deep: 'shape', depth: 'shape', frontage: 'shape', irregular: 'shape', narrow: 'shape', layout: 'shape',
+            neighbor: 'neighbor', neighbors: 'neighbor', neighbour: 'neighbor', adjacent: 'neighbor', adjoining: 'neighbor', abutting: 'neighbor', next: 'neighbor', door2: 'neighbor', assemblage: 'neighbor', assemble: 'neighbor',
+            profit: 'profit', margin: 'profit', return: 'return', returns: 'return', irr: 'return', roi: 'return', roc: 'return', yieldoncost: 'return', spread: 'return',
+            cost: 'cost', costs: 'cost', expense: 'cost', expenses: 'cost', budget: 'cost', hard: 'cost',
+            revenue: 'revenue', sellout: 'revenue', proceeds: 'revenue', income: 'demographic', incomes: 'demographic', gross: 'revenue', rent: 'revenue', rents: 'revenue',
+            water: 'utility', sewer: 'utility', septic: 'utility', well: 'utility', utility: 'utility', utilities: 'utility', electric: 'utility', electricity: 'utility', gas2: 'utility', power: 'utility', internet: 'utility', broadband: 'utility', fiber: 'utility',
+            soil: 'soil', soils: 'soil', perc: 'soil', percolation: 'soil', bedrock: 'soil', geotech: 'soil', geotechnical: 'soil',
+            traffic: 'traffic', aadt: 'traffic', congestion: 'traffic', road: 'road', roads: 'road', access: 'road', curb: 'road', entrance: 'road', street: 'road',
+            crime: 'crime', safe: 'crime', safety: 'crime', dangerous: 'crime',
+            population: 'demographic', demographic: 'demographic', demographics: 'demographic', growth: 'demographic', growing: 'demographic', median: 'demographic', household: 'demographic', households: 'demographic',
+            demand: 'market', absorption: 'market', vacancy: 'market', occupancy: 'market', trend: 'market', trends: 'market', hot: 'market',
+            timeline: 'timeline', months: 'timeline', approval: 'timeline', approvals: 'timeline', permit: 'timeline', permits: 'timeline', process: 'timeline',
+            environmental: 'environment', contamination: 'environment', contaminated: 'environment', brownfield: 'environment', phase: 'environment', pollution: 'environment', hazardous: 'environment',
+            loan: 'finance', financing: 'finance', finance: 'finance', lender: 'finance', debt: 'finance', equity: 'finance', interest: 'finance', ltv: 'finance', ltc: 'finance',
+            structure: 'structure', structures: 'structure', improvement: 'structure', improvements: 'structure', barn: 'structure', existing: 'structure', demolish: 'structure', demolition: 'structure', teardown: 'structure', vacant: 'vacant', ag: 'agricultural', agriculture: 'agricultural', agricultural: 'agricultural', farmland: 'agricultural', farm: 'agricultural', tillable: 'agricultural', crop: 'agricultural', crops: 'agricultural', empty: 'vacant', undeveloped: 'vacant', raw: 'vacant',
+            city: 'city', town: 'city', limits: 'limits', municipal: 'limits', incorporated: 'limits', unincorporated: 'limits', annex: 'limits', annexation: 'limits', jurisdiction: 'limits',
+            best: 'best', highest: 'best', optimal: 'best', ideal: 'best', better: 'best',
+            risk: 'risk', risks: 'risk', concern: 'risk', concerns: 'risk', downside: 'risk', downsides: 'risk', flag: 'risk', flags: 'risk', issue: 'risk', issues: 'risk', problem: 'risk', problems: 'risk',
+            deal: 'deal', invest: 'deal', investment: 'deal', opportunity: 'deal', pursue: 'deal', buy: 'buy', purchase: 'buy',
+            summary: 'summary', summarize: 'summary', overview: 'summary', brief: 'summary', snapshot: 'summary', rundown: 'summary', everything: 'summary'
+        };
+        function nluStem(w) {
+            if (w.length > 5 && w.endsWith('ies')) return w.slice(0, -3) + 'y';
+            if (w.length > 6 && w.endsWith('ing')) return w.slice(0, -3);
+            if (w.length > 5 && w.endsWith('ed') && !w.endsWith('eed')) return w.slice(0, -2);
+            if (w.length > 3 && w.endsWith('s') && !w.endsWith('ss') && !w.endsWith('us')) return w.slice(0, -1);
+            return w;
+        }
+        function nluTokens(text) {
+            const q = normalizeQuestion(text).replace(/single[- ]family/g, 'singlefamily').replace(/multi[- ]family/g, 'multifamily').replace(/next door/g, 'neighbor')
+                .replace(/high school/g, 'highschool').replace(/yield on cost/g, 'yieldoncost').replace(/square f(ee|oo)t/g, 'sqft').replace(/close by/g, 'near')
+                .replace(/how (much|many)/g, 'how_$1').replace(/who (owns|is the owner)/g, 'owner').replace(/natural gas|gas line/g, 'utility').replace(/city limits/g, 'limits');
+            const out = [];
+            q.split(/[^a-z0-9_$%-]+/).forEach(w => {
+                if (!w || NLU_STOP.has(w) || /^\d/.test(w) || w.startsWith('$')) return;
+                const t = NLU_SYNONYMS[w] || NLU_SYNONYMS[nluStem(w)] || nluStem(w);
+                if (!NLU_STOP.has(t)) out.push(t);
+            });
+            return out;
+        }
+
+        const INTENT_EXAMPLES = {
+            brief: ['what is your verdict', 'is it a dud', 'any dealbreakers', 'is this a good deal', 'should i buy this', 'what do you think of this parcel', 'give me a summary', 'pros and cons', 'is it worth pursuing',
+                'any red flags', 'what are the risks', 'tell me about this property', 'quick overview of the site', 'would you invest here', 'is this a good site for development',
+                'rate this parcel', 'how attractive is this site', 'what are the biggest concerns', 'is this a good opportunity', 'give me the rundown', 'is it a good investment',
+                'what stands out about this site', 'any problems with this land', 'what is the catch', 'first impressions', 'underwrite this deal', 'is this worth my time'],
+            price: ['what can i pay for it', 'how much should i offer', 'what is it worth', 'max land price', 'what is the land worth to a developer', 'residual land value',
+                'how much is the land worth', 'what should my bid be', 'what price makes sense', 'what would a developer pay', 'if i pay 500k what is my margin',
+                'can i afford it at 1 million', 'what is a fair price', 'how much can i spend on the land', 'does it pencil', 'what is the most i can pay', 'price per acre i can pay'],
+            breakeven: ['what sale price do i need', 'break even price', 'minimum sale price to make it work', 'what rent do i need', 'what do homes need to sell for',
+                'what price per unit makes this work', 'how high do prices need to be'],
+            sensitivity: ['sensitivity analysis', 'what if costs go up', 'how risky are the numbers', 'stress test the deal', 'downside case', 'what if prices drop', 'how sensitive is the land value'],
+            capacity: ['how many units can i build', 'how many homes fit', 'what density can i get', 'how many apartments', 'what is the yield', 'how many lots',
+                'can i build apartments here', 'what can i build', 'how many houses could go here', 'build out potential', 'how many doors', 'unit count', 'capacity of the site',
+                'how dense can it be', 'could i do townhomes', 'how many single family homes'],
+            comps: ['show me the comps', 'comparable projects nearby', 'what has been built near here', 'similar developments', 'nearby apartment complexes', 'precedents nearby',
+                'what density are the neighbors', 'recent subdivisions nearby', 'new construction around here', 'what projects are near this'],
+            constraints: ['how much is buildable', 'is any of it in a floodplain', 'flood zone', 'wetlands on the site', 'is it steep', 'how much land is usable', 'setbacks',
+                'site constraints', 'what can not be built on', 'topography', 'is the land flat', 'is it in a flood zone', 'environmental constraints', 'net buildable acres', 'is the land developable'],
+            assessment: ['what is the assessed value', 'tax assessment', 'how is it assessed', 'assessed value per acre', 'what does the assessor say', 'land value on the tax roll'],
+            owner: ['who owns it', 'who is the owner', 'owner contact', 'how long have they owned it', 'is the owner local', 'owner mailing address', 'is it owned by a company',
+                'would the owner sell', 'is it off market', 'when did they buy it', 'who holds title', 'is the owner motivated', 'how do i reach the owner', 'is it an estate or trust'],
+            unconnected: ['what is it zoned', 'zoning', 'can it be rezoned', 'what uses are allowed', 'when did it last sell', 'sale history', 'what did it sell for', 'is it listed for sale',
+                'is it on the market', 'last sale price', 'permitted uses', 'do i need a variance'],
+            distance: ['is it in a remote area', 'how rural is it', 'how far from town is it', 'how far is it from indianapolis', 'what is near this', 'what is nearby', 'are there any schools nearby', 'are there any shops nearby', 'what is in the area',
+                'how close is it to the highway', 'nearest hospital', 'drive time to downtown', 'is it close to a grocery store', 'what amenities are around', 'is it near shopping',
+                'any restaurants close by', 'commute to downtown', 'how many miles to the interstate', 'is there a park nearby', 'what is around the property', 'is it walkable to stores',
+                'access to highways', 'how far to the airport', 'closest school', 'is there transit nearby', 'what businesses are nearby', 'is it near a university'],
+            neighbors: ['who owns the land next door', 'adjacent parcels', 'who are the neighbors', 'can i assemble more land', 'what is next to it', 'surrounding parcels',
+                'does the owner own the neighboring land', 'assemblage potential', 'abutting properties', 'what borders the site'],
+            shape: ['what shape is it', 'how wide is it', 'dimensions of the lot', 'how much frontage', 'is it irregular', 'how deep is the lot', 'is it a good shape for development', 'layout of the parcel'],
+            taxes: ['what are the property taxes', 'how much tax', 'annual tax bill', 'tax cap', 'what will taxes be after development', 'property tax rate'],
+            size: ['how big is it', 'how many acres', 'what size is the parcel', 'how much land is there', 'square footage', 'acreage'],
+            class: ['what is the property class', 'is it farmland', 'is it agricultural land', 'is it farm ground', 'is it vacant', 'what is the land use', 'is it agricultural', 'is it commercial or residential', 'what type of property is it'],
+            districts: ['what school district', 'which township', 'tax district', 'what library district', 'school corporation'],
+            location: ['where is it', 'what is the address', 'what county is it in', 'what city is it in', 'coordinates', 'where exactly is this'],
+            ids: ['parcel number', 'parcel id', 'state parcel number', 'pin number'],
+            returns: ['what is my return', 'what are the returns', 'profit margin', 'return on cost', 'yield on cost', 'how much profit', 'what is the irr', 'is the margin good',
+                'development spread', 'how much money will i make', 'what is the profit'],
+            costs: ['how much will it cost to build', 'total development cost', 'construction cost', 'what is the budget', 'cost per unit', 'how expensive is it to develop', 'site work cost'],
+            revenue: ['what is the total revenue', 'sellout value', 'how much will it sell for', 'gross revenue', 'what is the project worth when done', 'total sales'],
+            bestuse: ['what is the best use', 'highest and best use', 'apartments or houses', 'should i build apartments or homes', 'what should i build here', 'which product type works best',
+                'is it better for single family or multifamily', 'best development type'],
+            jurisdiction: ['is it in city limits', 'is it incorporated', 'is it in the city or county', 'which government has jurisdiction', 'can it be annexed', 'who handles zoning here', 'is it inside town limits'],
+            utilities: ['does it have water and sewer', 'is sewer available', 'utilities', 'is there city water', 'will i need a septic system', 'is there electric', 'is there natural gas', 'internet access', 'what utilities are available'],
+            structures: ['are there buildings on it', 'is there a house on it', 'any existing structures', 'is it vacant land', 'will i need to demolish anything', 'is it raw land', 'any improvements on the site'],
+            market: ['how is the rental market', 'is there buyer demand', 'what is the market like', 'is there demand for apartments', 'what are rents in the area', 'vacancy rates', 'absorption', 'is this a growing area', 'market trends', 'what are homes selling for nearby'],
+            soils: ['what are the soils like', 'will it perc', 'soil conditions', 'is there bedrock', 'geotechnical issues', 'can it support septic'],
+            traffic: ['how much traffic', 'traffic counts', 'road access', 'is there a curb cut', 'how do you get onto the site', 'what road is it on', 'is it on a busy road'],
+            crime: ['is it a safe area', 'crime rate', 'is the neighborhood safe', 'is it dangerous'],
+            demographics: ['is the area growing', 'population growth', 'what is the population', 'demographics', 'median income', 'is the population growing', 'how many households', 'who lives around here'],
+            timeline: ['how long will approvals take', 'entitlement timeline', 'how long to get permits', 'what is the approval process', 'how long to rezone'],
+            environment: ['any environmental issues', 'is it contaminated', 'do i need a phase 1', 'brownfield', 'environmental risk', 'hazardous materials'],
+            finance: ['how should i finance it', 'what loan can i get', 'how much equity', 'interest rate', 'loan to cost', 'debt financing']
+        };
+
+        // Spelling: key words the analyst corrects toward, and real English words near them that it leaves alone
+        // (built by tools/build_spelling.py from the an-array-of-english-words list, MIT)
+        const SPELL_TARGETS = 'owner owners owns owned acres acreage zoning zoned sewer septic utilities utility water apartments apartment assessed assessment value worth price prices distance nearest nearby closest school schools grocery groceries hospital hospitals wetland wetlands floodplain flood subdivision neighborhood density comps comparables comparable taxes property parcel build built units homes houses highway interstate restaurants restaurant shopping shops stores demographics population income financing environmental contamination residual breakeven sensitivity margin profit return returns construction development developer revenue frontage dimensions shape adjacent neighbors neighboring townhomes multifamily family amenities commute drive minutes miles downtown airport university college parks traffic access crime market rents vacancy absorption soils timeline approval permits rezoning entitlement structures buildings demolish vacant farmland agricultural township district location address county limits annexation jurisdiction offer afford budget costs from much many near what where which there should would could about around'.split(' ');
+        const SPELL_REAL = new Set('abilities ability abnegation abort abortion abound abouts abrege abscessed absolution absorptions absorptive abstrict abuilding abut accessed acerate acers aces achage aches acierage acmes acnes acre acreages acred actress addeems adders addies addles addressed addressee addresser addresses addressor addrest adducent adenitis adenitises adjacence adjacency adjacently adjacents adnascent adorers adores adpress adsorption adsorptions affoord affords aggress agilities agility agrege agriculturally agriculture agricultures aground aidless airboat airpark airports airpost airposts airprox allege allocation amanitins amentias aminities amities amnesties ancome ancress anear anhelation anilities anility annexational annexations annexion annotation annulation anticultural apartmental apicultural aport appartement appartements apport appress approvable approvably approvals approve approved approver approves apres aquicultural areae arenites ares arks armband arriage aseities aseptic aspersed asport assented asserted assess assesses assessments assessor assisted astrict aureate aures avenue average avocation awarest awned awner awners awns axes ayres bareland barest barks bear beares bents bhat biddings bidings biles billings bilocation bindings birdings blearest blindings blood boilings boils boned boning bopping bounty bouses bout bowned brakemen breakevens brents brokeries brokery buddings budge budged budger budges budgets building builds buist bulkings bullings bullrings bundlings callee cameline camps cany carcel cares carks carnage carport cartage casts cater cation cauld cents cermets chape chapping chat chere chich chime chipping cholos chomping chomps choofs chooks chooms choons chopping choppings chops choses chouses cists clearest clime clokes clomps clones clopping close closed closely closeout closer closers closes closet closets closeup clotes cloves cloyes clozes coaction coadjacent coasts coats coction codeveloper coffer cofinancing coils coits cold coldest collage collaged collagen collages collate colleague collect colled colleen colleger collegers colleges collegia collet colleted collets collide collie collogue collude colts comas comate combatable combs comes commata commere commie comminute commit commits commode commot commote commotes commots commove comms commune communed communer communes commutate commuted commuter commuters commutes comp companiable comparably compas compassable compatible compatibles compete compital compliable compo compos compote compt comptable compts computable compute computed computer computes coms comte comus conation coned confute coning constriction constrictions constructing constructional constructions constructive constructor contaminating contaminations contaminative contaminator contraction coolest cools coonty coops coots copping cops copulation copulations cornute corps cortege coses coset cosets cosiest coss cosset cost costa coste costes costus cotland cotlands cots cotts coulee count country counts coups courd cowps coyest crame creagh crease create creme crim crimed crimen crimes crimp crims crine cripe crise crockeries crockery crome crools cropping crossest cunty cysts darks dater deadest deafest dear deares dearest dearests deboning decidual deconstruction decontamination deity delish demersions demits demographers demographic demographical demographies demographist demographists demolished demolisher demolishes demonise demonism demonist demotist densely densify dents department departments depolish deponing depopulation derive dermis dermographies deschools desistance desorption destruct detenue develop develope developed developers developes developmental developments developpe developpes develops devilish dilutes dimension dimensional dimensioned dispace dispence disport dissensions distanced distances distant distaste distensions distich distinct distract distracts distraint distrait districted districts distrix distrust distune dive diversions diversity doffer dogtown domes donation doning donship dopping dotation douses downbow downbows downcomes downed downer downers downs downtowner downtowns downturn drave drearest dress drice drices drivel driven driver drives dropping drove ductilities ductility duress earnest earst eater ecloses eildings eland elands eldress elocution emits enmity entablement enticement entitlements entity enurns enveloper envelopment environment environmentally environments enzoning epulation estopping evocation ewer exilities exility fairyland farand farmhand farmhands farmlands farmyard farrand faxes fear feares featest fenland fenlands fents ferest fermis fewer files filmland finagling financial financier financings finites finning fishway floatage floodplains floods floor flopping flotage flotation foamily foils fomes fontange food footage fopping foreland form forth frautage fremits froe frog fromage frondage frondages frontager frontagers frontages frontal frontals frontpage frontpaged frontpages fros frottage frottages frow fruitage futilities futility gamily garland gater gear geares gents germins ghat gildings glopping glycation goffer gooseries goosery gowned gowns graperies grapery grice gricer gricers grices grime grocer grocers groggeries groggery groper gropers groser grosers grosert ground grower growers growleries growlery guidings guild guilt hames happing harks hater hauses headdress headrest hear heares hemes hents here hermit hermits hewer highboy highly highman highways hildings hipping hireage hocuses hoes hoises hokes holes homas home homed homer homers homey homeys homies hommes homos homs honed hones honing hooping hopes hoping hopping hoppings hoppling hops hormes horses hoses hospitable hospitably hospitage hospitages hospitale hospitaler hospitalers hospitales hospitalise hospitalist hospitia hosses hosts house housed housel housels houser housers housey hoves howes hoxes humilities humility hupping hypping identity impartment impartments import imputes incomer incomes incomparable indexation insensitivity instance instruction intensate interspace interstage interstates interstice intestate intestates intrastate inturns inures inutilities inutility iodation jacent jarks jobation jurisdictional jurisdictions jurisdictive karks kents kermis khat knits lactation larks later lavation laxation laxes lealest leanest lear leares leariest lection lecturns legation lemoning lemonish lenities lenity libation lichway lifeline ligation limation limit limites linuxes lobation lobations lobulation locating locational locations locative locator loculation locution locutions lomes loosest lopping lorication loses lotion louses lowest lowned lowns lowsest luctation lunation luxation mach mailes males mana mand mane mang mangy mani manky manly mano mans mantes manty manures marcel margins marked marker markets marks marlin martin mary mater maty maxes mazy meagrest meanest meany meares merest merits micates mich mikes milds mile miler milers milfs milks milles mills milos mils milts mimes minces mines minettes minges mingles miniates minkes minnies minster minsters minted minter minters mints minuet minuets minus minuses minute minuted minutely minuter minutest minutia minxes miny mires mises misuses mites mixes moch modulation moils moles momes montage montes mony mopping morulation mosts motilities motility mouch mould mouses mucho muck mulch mules munch munites mush mutch mutes nacres nares narks neafes neal neap neared nearer nearliest nearly nearness nears neat neatest negress neighbor neighbored neighborhoods neighborly neighbour neighbourhood neighbourhoods neighbouring neighbours neshest newer newest nits nodation nodulation noils nomes north notation nould nouses novation nubilities nubility oater obsessed obstruction ocreae ocreate oddness offed offers ofter oils omneities oncome oner oners onned oons oppilation oration ouch ould outland outlands ovation ovulation owed ower owes owled owler owlers owls owts pacation packs paiks papulation papulations parament paraments paras parcels pards pares paris park parka parkas parki parkis parkland parky parps parrel parrs pars parts pastance pater pawks paxes pear peares pearst peartest peatland peatlands peculation peewits pelmets penancing pents peptic perais perfins perils peris periti peritus perkins perks perlite perlites permian permie permies perming permit perms permute permutes perries persist persists perts pewits phat pice piles pinites pipeline pittance placation plication plopping pollee pomes pomps pontage popery popping populating populational populations porks possessed posts postulation potation poverty powns preces premies premiss prents preponing presidial prevene priced pricer pricers pricey prick pricks pricy pride prides pries prime primes prince princes prise prises prize prizes probit procerity profits prom proper properer properly propers propping propriety prosit prosperity purport quarest quillings quilt quiltings quopping raffia rants rarest rarks rater raxes razoring reabsorption readdress realest reannexation rear rearrest reasoning reassessed reassessment reboring recaning recense reckoning recoding recoining reconning reconstruction recontamination recures recurs redeveloper redevelopment redistrict redoing redonning redress reearns reemits refence refinancing refining regence regurs rehoming reigning reining rejoining rejourns reland relands relining reloaning relocation remits removing rends renegue renning renowning rens rent rente rentes repining repolish reponing repopulation reposing reproval repugns repures requins reruns reschools residua residually residuals residuary residue residues residuum resining resoling resorption resowing restrict restructures rests retains retards retene retinue retires retorn retorts retours retros rets retund retunds retune retunes retuning returf returfs returned returnee returnees returner returners returnik returniks revalue revenge revenged revenger revenges revenual revenued revenuer revenuers revenues revere reverie reverse reveur reveuse revoking revoting revue rice rices riles rime rive rockeries rockery rogation roils romps ronts rootage roperies ropery roseries rosery rosts rotation round rouses runts sails salue sapping sarks sawer saxes scape sceptic schloss schmoes schmoos schmos schnooks schoole schooled schooles schoolie schoolies schorl schorls schouts schrods schtooks schuls scoogs scooping scoops scoots scoping scops scores scouping scowls scowping scrolls scroops scrowls sear searest seder seer sefer seils semmits sensibility sensitively sents sepic septics serer serest sericultural sever sewar sewed sewel sewen sewers sexer shade shake shale shame shaped shapen shaper shapes shaping shaps share sharping shat shave sheols shere shetland shetlands shewer shipping shippings ships shlepping shoaling shoals shocking shoeing shoes shogging shogs shooing shooks shool shoole shooles shooling shools shoos shooting shoots shop shope shoppier shoppings shores shoring shorls shorting shots shotting shouses shouting shoving showding showing showring shows shtupping sideline siles sinuates sinuses sipping skepping skeptic skewer skipping skools slapping slipping sloping slopping slops slowest smiles smores snapping snipping snits snools snooping snores soaping sociation soil soily solation solfege sols sonship sools sooping soops sopping soppings sops sorceries sorcery sores sorption souls souping souses sower sowls sparest sparks spewer spital spitals spoils spools spores sporulation stance stapping stares stepping steres stewer stilty stires stokes stoles stomping stones stools stooping stopes stoping stopping stoppings stoppling stops store stored storer storers storey storeys storges stories storks storms stoures stoves stowres striatures strict stricture strictured strictures stropping structural structure structured styres subdecision subdivisional subdivisions subdivisive subtilities subtility such supping swapping sweer swooping swopping swoppings swops tabes taces taes taffia tajes takes tales tames tapeline tapes tarcel tares tater tates taxed taxer taxers taxies taxis taxus tear teariest tenoning tensity tents tenuity termite termites territs texes that thebe thee theme theres therm therme thermits these thete three tidelike tideline tidelines tilelike tiles timberline timelier timelines timeliness tireling toils tollage tomes toned toning topping tores touses townhome townhouse townhouses towns townships townskip townskips traceries tracery trafficky traffics tragic tranship trice trices triffic triffid tsores tumpline turns tuxes twinship uloses understate undress unfits unicities unicity unis unit unite unites unity universality unturns unwits upbuildings upturns utilise utilises utilize utilizes vacance vacances vacantly vacation vagrancy vague valance vale valency valiancy valse valued valuer values valve vapulation venosity vents venue verdits vermils vermins vermis vocalion vocation vocations wader wafer wafter wager waiter waker waler wanter wany wardress warks waster wate waters watery watter waver waxer waxes weakest wear weariest weasand weasands weazand weazands wents were wesand wesands wessand wessands wezand wezands whae wham whap whapping whare whata whats wheare wheat wheatland wheatlands whee wheres wherve whet whipping whish whit whomping whooping whopping whoppings whops whore whot whupping wich wildings wiles woald wold woning wons woold wopping world wort worths worthy worts woulds wound wroth yardland yarest yarks year yomps yuch zany zaxes zibeline zonation zone zoner zones zonings zonked zonking zooned zooning'.split(' '));
+        const SPELL_TARGET_SET = new Set(SPELL_TARGETS);
+        // Misspellings that happen to be real words but almost always mean the land term in this context
+        const SPELL_FIXES = { acers: 'acres', acer: 'acre', acrage: 'acreage', ownr: 'owner', zonning: 'zoning', utilites: 'utilities' };
+        let SPELL_KNOWN = null; // every word the analyst already understands; filled once the examples are loaded
+        // Optimal string alignment distance (Damerau-Levenshtein without repeated edits), stopping early past `max`
+        function editDistance(a, b, max) {
+            if (Math.abs(a.length - b.length) > max) return max + 1;
+            const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...new Array(b.length).fill(0)]);
+            for (let j = 1; j <= b.length; j++) d[0][j] = j;
+            for (let i = 1; i <= a.length; i++) {
+                let rowMin = Infinity;
+                for (let j = 1; j <= b.length; j++) {
+                    const c = a[i - 1] === b[j - 1] ? 0 : 1;
+                    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + c);
+                    if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+                    rowMin = Math.min(rowMin, d[i][j]);
+                }
+                if (rowMin > max) return max + 1;
+            }
+            return d[a.length][b.length];
+        }
+        function correctSpelling(w) {
+            if (SPELL_FIXES[w]) return SPELL_FIXES[w];
+            if (w.length < 4 || SPELL_TARGET_SET.has(w) || SPELL_REAL.has(w) || (SPELL_KNOWN && SPELL_KNOWN.has(w)) || PLACE_WORDS.has(w)) return w;
+            // Two edits only between long words (the same rule tools/build_spelling.py used to list real words to protect)
+            let best = null, bestD = 3;
+            for (const t of SPELL_TARGETS) {
+                const max = w.length >= 7 && t.length >= 7 ? 2 : 1;
+                const dd = editDistance(w, t, max);
+                if (dd <= max && dd < bestD) { bestD = dd; best = t; }
+            }
+            return best || w;
+        }
+        SPELL_KNOWN = new Set([...Object.keys(NLU_SYNONYMS), ...NLU_STOP, ...Object.values(INTENT_EXAMPLES).flat().join(' ').split(/[^a-z]+/)]);
+        // Rare words count more: inverse document frequency over all examples
+        const NLU_INDEX = (() => {
+            const docs = [];
+            Object.entries(INTENT_EXAMPLES).forEach(([intent, list]) => list.forEach(ex => docs.push({ intent, toks: [...new Set(nluTokens(ex))] })));
+            const df = {};
+            docs.forEach(d => d.toks.forEach(t => { df[t] = (df[t] || 0) + 1; }));
+            const idf = t => Math.log(1 + docs.length / ((df[t] || 0) + 0.5));
+            return { docs: docs.filter(d => d.toks.length), idf };
+        })();
+        // Best-matching intents for a question: each example scores the weighted F1 of shared words
+        function classifyIntents(msg) {
+            const q = [...new Set(nluTokens(msg))];
+            if (!q.length) return [];
+            const { docs, idf } = NLU_INDEX;
+            const qw = q.reduce((t, w) => t + idf(w), 0);
+            const best = {};
+            docs.forEach(d => {
+                let shared = 0;
+                d.toks.forEach(w => { if (q.includes(w)) shared += idf(w); });
+                if (!shared) return;
+                const dw = d.toks.reduce((t, w) => t + idf(w), 0);
+                const prec = shared / (qw + NLU_SMOOTH), rec = shared / (dw + NLU_SMOOTH), f = 2 * prec * rec / (prec + rec);
+                if (!best[d.intent] || f > best[d.intent]) best[d.intent] = f;
+            });
+            return Object.entries(best).map(([intent, score]) => ({ intent, score })).sort((a, b) => b.score - a.score);
+        }
+
+        // ---- Returns, costs, best use, jurisdiction, structures, and questions LandLens has no data for ----
+        const inputVal = (over, id) => over[id] != null ? over[id] : (parseFloat(document.getElementById(id).value) || 0);
+        function projectNumbers(m, over, landCost) {
+            const revenue = m.units * inputVal(over, 'calc-rev');
+            const build = m.units * inputVal(over, 'calc-cost'), site = inputVal(over, 'calc-site');
+            const cost = build + site + (landCost || 0);
+            return { revenue, build, site, land: landCost || 0, cost, profit: revenue - cost };
+        }
+        function answerReturns(p, m, over, landPrice, cfg) {
+            if (!m || !m.units) return section('Returns', '<p>No units on the site under your assumptions, so there\'s nothing to return.</p>');
+            const target = inputVal(over, 'calc-profit');
+            const land = landPrice != null ? landPrice : Math.max(0, m.rlv);
+            const n = projectNumbers(m, over, land);
+            const margin = n.revenue ? n.profit / n.revenue * 100 : 0, roc = n.cost ? n.profit / n.cost * 100 : 0;
+            const lines = [
+                `${landPrice != null ? `Paying ${strong(fmtMoney(landPrice))} for the land` : m.rlv > 0 ? `Paying the full land value of ${strong(fmtMoney(land))}` : 'With the land free'}: profit ${n.profit >= 0 ? good(fmtMoney(n.profit)) : warn('−' + fmtMoney(-n.profit))}, a ${strong(margin.toFixed(1) + '% margin')} on revenue and ${strong(roc.toFixed(1) + '% return on cost')}.`,
+                `Each $100k you pay for the land moves the margin by about ${n.revenue ? (100000 / n.revenue * 100).toFixed(2) : '—'} points.`
+            ];
+            if (devMode === 'apartment') {
+                const spread = (inputVal(over, 'calc-rev') / inputVal(over, 'calc-cost') - 1) * 100;
+                lines.push(`Development spread: stabilized value ${fmtMoney(inputVal(over, 'calc-rev'))} vs. cost ${fmtMoney(inputVal(over, 'calc-cost'))} per unit, ${strong(spread.toFixed(1) + '%')} before land and site costs.`);
+            }
+            lines.push(`IRR and equity multiple need a timeline and financing, which LandLens doesn't model; this is a simple project-level view against your ${target}% target.`);
+            return section('Returns', bullets(lines));
+        }
+        function answerCosts(p, m, over, landPrice, cfg) {
+            if (!m) return section('Costs', '<p>No boundary, so I can\'t size the project.</p>');
+            const n = projectNumbers(m, over, landPrice);
+            return section('Development cost', bullets([
+                `${m.units.toLocaleString()} ${cfg.units} × ${fmtMoney(inputVal(over, 'calc-cost'))} = ${strong(fmtMoney(n.build))} to build, plus ${fmtMoney(n.site)} site and soft costs${landPrice != null ? ` and ${fmtMoney(landPrice)} for the land` : ''}.`,
+                `Total ${strong(fmtMoney(n.cost))}: ${fmtMoney(m.units ? n.cost / m.units : null)} per ${cfg.unit}, ${fmtMoney(p.acres ? n.cost / p.acres : null)} per gross acre.`,
+                'These are your Development Engine inputs; change them there, or ask a what-if like "with costs at $190k".'
+            ]));
+        }
+        function answerRevenue(p, m, over, cfg) {
+            if (!m) return section('Revenue', '<p>No boundary, so I can\'t size the project.</p>');
+            const n = projectNumbers(m, over, 0);
+            return section(devMode === 'apartment' ? 'Stabilized value' : 'Sellout', bullets([
+                `${m.units.toLocaleString()} ${cfg.units} × ${fmtMoney(inputVal(over, 'calc-rev'))} = ${strong(fmtMoney(n.revenue))}${p.acres ? ` (${fmtMoney(n.revenue / p.acres)} per gross acre)` : ''}.`,
+                devMode === 'apartment' ? 'This is the value of the finished, leased-up property at your per-unit value, not rent.' : 'This assumes every home sells at your per-home price.'
+            ]));
+        }
+        // Run the other development type with its default assumptions, alongside your current inputs
+        function otherModeModel(mode) {
+            const d = DEV_MODES[mode].defaults;
+            return computeModel({ ...d });
+        }
+        function answerBestUse(p, m) {
+            if (!m) return section('Best use', '<p>No boundary, so I can\'t compare uses.</p>');
+            const other = devMode === 'apartment' ? 'neighborhood' : 'apartment';
+            const mo = otherModeModel(other);
+            const cur = { mode: devMode, m }, alt = { mode: other, m: mo };
+            const name = mo2 => mo2 === 'apartment' ? 'Apartments' : 'Single-family neighborhood';
+            const row = x => `${strong(name(x.mode))}: ${x.m.units.toLocaleString()} ${DEV_MODES[x.mode].units} at ${x.m.density}/acre, land value ${x.m.rlv > 0 ? good(fmtMoney(x.m.rlv)) : warn(money(x.m.rlv))}.`;
+            const winner = [cur, alt].sort((a, b) => b.m.rlv - a.m.rlv)[0];
+            return section('Best use', bullets([
+                row(cur) + ' <span class="text-slate-500">(your inputs)</span>',
+                row(alt) + ' <span class="text-slate-500">(default assumptions)</span>',
+                winner.m.rlv > 0 ? `${strong(name(winner.mode))} supports the higher land value, so that's the stronger use on these numbers.` : 'Neither use pencils on these numbers; prices would need to rise or costs fall.',
+                'Zoning decides what\'s actually allowed, and comps differ by type: switch modes on the Development Engine tab to load comps for the other use.'
+            ]));
+        }
+        function inCityLimits(p) {
+            const c = String(p.taxCity || '').trim();
+            return c && !/^(none|unincorporated|n\/a|0)$/i.test(c) ? c : null;
+        }
+        function answerJurisdiction(p) {
+            const city = inCityLimits(p);
+            return section('Jurisdiction', bullets([
+                city ? `Inside ${strong(city)}'s taxing district, so it's within municipal limits: the city or town handles zoning and usually water and sewer.`
+                    : `${strong('Unincorporated')} ${escapeHtml(p.township || '')} ${p.township ? 'Township, ' : ''}${escapeHtml(p.county || '')} County: county planning handles zoning, and services depend on the area. A nearby town may require annexation to extend sewer.`,
+                `School district: ${strong(p.school || '—')}.`,
+                'Based on the tax district the assessor records; confirm with the county auditor.'
+            ]));
+        }
+        function answerUtilities(p) {
+            const city = inCityLimits(p);
+            return section('Utilities', bullets([
+                'LandLens doesn\'t have utility maps, so I can\'t confirm water, sewer, power or broadband at this parcel.',
+                city ? `It's inside ${strong(city)}'s taxing district, which makes municipal water and sewer likely nearby; ask the city utility about capacity and tap fees.`
+                    : 'It\'s unincorporated, so public sewer may be far away. Plan for septic or a sewer extension (often tied to annexation), and check for a regional water or sewer district.',
+                'Confirm with the local utilities and the Indiana Utility Regulatory Commission\'s service-area information; for septic, the county health department.'
+            ]));
+        }
+        function answerStructures(p) {
+            const a = p.assess;
+            const vacant = p.classCode && VACANT_CODES.includes(p.classCode);
+            const lines = [];
+            if (a && a.impAV > 0) lines.push(`The assessor carries ${strong(fmtMoney(a.impAV))} of improvements (${a.totalAV ? Math.round(a.impAV / a.totalAV * 100) : '—'}% of value), so expect at least one building: a house, barn or outbuilding. Plan for demolition or working around it.`);
+            else if (a && a.impAV === 0) lines.push(`${good('No improvements assessed')}: it's carried as land only, so no buildings of value on record.`);
+            else lines.push('No assessor record, so I can\'t tell whether there are buildings.');
+            if (p.classCode) lines.push(`Property class ${escapeHtml(p.classCode)}: ${escapeHtml(classLabel(p.classCode))}${vacant ? ' (a vacant-land class)' : ''}.`);
+            lines.push('Check the satellite view (Satellite button on the map) to see what\'s actually there.');
+            return section('Existing structures', bullets(lines));
+        }
+        // Questions LandLens has no data for: say so and point to the right source
+        const GAP_ANSWERS = {
+            market: ['Market data', 'LandLens doesn\'t have rents, sale prices, vacancy or absorption. Your Development Engine inputs stand in for them.', ['CoStar (you have access) for apartment rents, vacancy and absorption', 'MLS or a local broker for home sale prices and days on market', 'The comps on the Development Engine tab show what density has been built nearby']],
+            soils: ['Soils', 'LandLens doesn\'t have soil data.', ['USDA Web Soil Survey (websoilsurvey.nrcs.usda.gov) for soil types and septic suitability', 'A geotechnical report before you close for foundations and bearing capacity', 'The county health department for perc tests if septic is needed']],
+            traffic: ['Road access & traffic', 'LandLens doesn\'t have road access or traffic counts.', ['INDOT\'s traffic count database for daily traffic on nearby roads', 'The satellite view on the map to see frontage and existing drives', 'The county highway department or INDOT for curb-cut and access permits']],
+            crime: ['Crime & safety', 'LandLens doesn\'t have crime data.', ['The local police department or sheriff\'s published crime data', 'Local brokers and property managers for how the area is perceived']],
+            demographics: ['Demographics', 'LandLens doesn\'t have population or income data.', ['data.census.gov (American Community Survey) for population, income and growth by tract', 'STATS Indiana for county trends', 'SAVI for Indianapolis-area neighborhood data']],
+            timeline: ['Approvals & timeline', 'LandLens doesn\'t track entitlement timelines; they vary by jurisdiction and by whether a rezoning is needed.', ['The local plan commission\'s meeting calendar and filing deadlines', 'A local land-use attorney or engineer for a realistic schedule']],
+            environment: ['Environmental', 'LandLens measures floodplain, wetlands and steep slopes (ask "how much is buildable?"), but has no contamination records.', ['A Phase I Environmental Site Assessment before closing', 'IDEM\'s online records for known contamination, tanks and brownfields nearby']],
+            finance: ['Financing', 'LandLens doesn\'t model debt or equity; it gives the project-level numbers (ask "what are the returns?").', ['Use the land value and returns here as the starting point for a lender\'s or capital partner\'s model']]
+        };
+        function answerGap(t) {
+            const [title, lead, list] = GAP_ANSWERS[t];
+            return section(title, `<p>${escapeHtml(lead)}</p>` + bullets(list.map(s => escapeHtml(s))));
         }
 
     </script>
