@@ -3135,26 +3135,39 @@ svg.leaflet-image-layer.leaflet-interactive path {
         const ANALYST_TOPICS = [
             // [topic, pattern] — order sets the order of sections in a multi-topic answer
             ['help', /\b(help|what can you|what do you know|capabilit\w*|what (should|can) i ask)\b/],
-            ['brief', /\b(summar\w*|overview|brief|insights?|thoughts?|opinion|good deal|worth (it|pursuing|a look)|should (i|we)|pursue|opportunit\w*|pros|cons|risks?|red flags?|concerns?|tell me about|what do you think|analy[sz]\w*|evaluat\w*|underwrit\w*|verdict|recommend\w*|take on)\b/],
-            ['distance', /\b(how far|distance|miles (from|to|away)|minutes (from|to|away)|drive|driving|commute|how close|close to|nearest|closest|what'?s (around|nearby|near it|close by)|nearby (amenities|services|places|stores|schools)|amenit\w*|proximity|walking distance|away from)\b/],
+            ['brief', /\b(summar\w*|overview|brief|insights?|thoughts?|opinion|good deal|bad deal|worth (it|pursuing|a look|buying)|should (i|we)|pursue|opportunit\w*|pros|cons|risks?|red flags?|concerns?|downsides?|upsides?|tell me (about|everything)|anything (i should know|notable|interesting|important)|what do you (think|make of)|first impressions?|analy[sz]\w*|evaluat\w*|underwrit\w*|verdict|recommend\w*|take on|good (site|spot|location|parcel|investment|buy|fit)|invest\w*|buy (it|this parcel)|is (it|this parcel) (good|any good|worth (it|buying|pursuing)))\b/],
+            ['distance', /\b(how far|far (from|to|away)|distance|miles? (from|to|away)|minutes? (from|to|away)|drive|driving|commute|how close|close (to|by)|near|nearby|nearest|closest|around (it|this parcel)|is around|in the (area|vicinity|neighborhood)|vicinity|surroundings|surrounding area|proximity|walking distance|away from|amenit\w*|is there an? .+ (near|close|around)|any .+ (near|close|around))\b/],
             ['neighbors', /\b(neighbou?r\w*|adjacent|adjoin\w*|abutt\w*|next door|surrounding (parcels|land|uses|properties)|assembl\w*)\b/],
-            ['price', /\b(offer|pay|max(imum)? (price|bid|land)|land (price|cost|value)|how much (should|can|could|would)|bid|afford|residual|rlv|worth to (a )?developer|margin|profit|return|pencil)\b/],
+            ['price', /\b(offer|pay|max(imum)? (price|bid|land)|land (price|cost|value)|how much (should|can|could|would)|bid|afford|residual|rlv|worth to (a )?developer|margin|profit|return|pencil|(what|how much) is (it|this parcel) worth|value (it|this parcel)|price (it|this parcel)|cost to (buy|acquire)|what is it worth)\b/],
             ['breakeven', /\b(break ?even|minimum (sale|price|rent)|needs? to (sell|be worth)|need to sell for|what (sale )?price (do|would|will|should) (i|we) need|(sale|selling) price (do|would|will) (i|we) need|price (do|would) (i|we) need)\b/],
             ['sensitivity', /\b(sensitiv\w*|stress\w*|downside|upside|what happens if (costs?|prices?)|swing|how risky)\b/],
-            ['capacity', /\b(units?|homes?|houses?|lots?|density|yield|capacity|how many|fit|build|develop|apartments?|townhomes?)\b/],
+            ['capacity', /\b(units?|homes?|houses?|lots?|density|yield|capacity|how many|fit|build\w*|develop\w*|apartments?|townhomes?|subdivid\w*|build ?out)\b/],
             ['comps', /\b(comps?|comparables?|precedents?|similar (projects?|developments?|sites?)|nearby (projects?|developments?|apartments?|neighborhoods?|subdivisions?))\b/],
-            ['constraints', /\b(flood\w*|wetlands?|slopes?|steep|setbacks?|constraints?|unbuildable|buildable|topograph\w*|environmental|open space)\b/],
+            ['constraints', /\b(flood\w*|wetlands?|slopes?|steep|setbacks?|constraints?|unbuildable|buildable|usable|unusable|developable|undevelopable|topo\w*|terrain|hilly|hills?|swamp\w*|wet|grading|environmental|open space)\b/],
             ['assessment', /\b(assess\w*|tax(ed)? value|valuation|valued)\b|\bav\b/],
-            ['owner', /\b(owners?|owned|who (owns|has)|mailing|contact|reach|motivat\w*|off.?market|seller|tenure|how long|acquired|transfer\w*|llc|entity|absentee)\b/],
+            ['owner', /\b(owners?|owned|who (owns|has|is the owner)|whose|landowner|mailing|contact|reach|motivat\w*|off.?market|seller|tenure|how long (have|has|did)|acquired|transfer\w*|llc|entity|absentee)\b/],
             ['unconnected', /\b(zoning|zoned|rezon\w*|permitted|allowed uses?|sales? history|sold for|last sold|last sale|listing|listed)\b/],
             ['shape', /\b(shape|dimensions?|frontage|how wide|how deep|width|depth|perimeter|irregular|narrow|layout)\b/],
             ['taxes', /\b(property tax\w*|taxes|tax bill|tax caps?|circuit breaker|how much tax|annual tax)\b/],
-            ['size', /\b(acres?|acreage|size|how big|how large|square (feet|footage)|sq ?ft|area)\b/],
+            ['size', /\b(acres?|acreage|size|how big|how large|how much land|square (feet|footage)|sq ?ft)\b/],
             ['class', /\b(property class|class code|land use|vacant|what type|classif\w*|use code)\b/],
             ['districts', /\b(school|township|tax district|taxing|library)\b/],
-            ['location', /\b(where|address|located|location|county|coordinates|map)\b/],
+            ['location', /\b(where is (it|this parcel)|address|located|location|what (city|town|county)|which (city|town|county)|coordinates|lat(itude)?|long(itude)?)\b/],
             ['ids', /\b(parcel (number|id)|\bpin\b|state parcel)\b|\bid\b/]
         ];
+
+        // Normalize phrasing so different wordings reach the same answer: contractions are expanded and every way of
+        // saying "this parcel" (the plot, this lot, the land, the property, this site…) becomes "this parcel".
+        function normalizeQuestion(msg) {
+            let q = ' ' + msg.toLowerCase().replace(/[’‘`]/g, "'") + ' ';
+            [[/\bwhat'?s\b/g, 'what is'], [/\bwhere'?s\b/g, 'where is'], [/\bwho'?s\b/g, 'who is'], [/\bhow'?s\b/g, 'how is'], [/\bit's\b/g, 'it is'],
+             [/\bthat's\b/g, 'that is'], [/\bthere's\b/g, 'there is'], [/\bisn't\b/g, 'is not'], [/\bdoesn't\b/g, 'does not'], [/\bdon't\b/g, 'do not'],
+             [/\bcan't\b/g, 'cannot'], [/\bwon't\b/g, 'will not'], [/\bi'm\b/g, 'i am'], [/\bi'd\b/g, 'i would'], [/\bwanna\b/g, 'want to'], [/\bgonna\b/g, 'going to']]
+                .forEach(([re, to]) => { q = q.replace(re, to); });
+            q = q.replace(/\b(this|the|that|my|our|your)\s+(plot|lot|land|tract|acreage|property|site|parcel|piece|ground|spot|farm|field)(\s+of\s+(land|ground|property))?\b/g, 'this parcel');
+            q = q.replace(/\bhere\b/g, 'this parcel');
+            return q.replace(/\s+/g, ' ').trim();
+        }
 
         // ---- Reading numbers out of a question ----
         function parseMoney(numStr, suffix) {
@@ -3343,7 +3356,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
         }
 
         async function buildAnswer(p, msg, onStatus) {
-            const q = msg.toLowerCase().replace(/[’']/g, "'");
+            const q = normalizeQuestion(msg);
             const cfg = DEV_MODES[devMode];
             if (analystMemory.parcel !== p) analystMemory = { parcel: p, topics: [], over: {}, landPrice: null };
 
@@ -3361,6 +3374,9 @@ svg.leaflet-image-layer.leaflet-interactive path {
             const newFound = Object.keys(newOver).length > 0;
             const qTopics = q.replace(/\d+(?:\.\d+)?\s*(?:units?|homes?|houses?|lots?|du|doors?)?\s*(?:\/|per|an|a)\s*(?:acre|ac)\b/g, ' density ');
             let topics = ANALYST_TOPICS.filter(([, re]) => re.test(qTopics)).map(([t]) => t);
+            // A city or landmark named in the question ("how far is Muncie?", or just "Muncie?") is a distance question
+            if (!topics.includes('distance') && p.lat != null && findNamedPlaces(msg, p).found.length && (/\b(far|close|near|miles?|minutes?|drive|from|to|distance)\b/.test(q) || q.split(' ').length <= 4)) topics.push('distance');
+            if (topics.includes('distance') && (topics.includes('comps') || topics.includes('neighbors')) && !/\b(how far|how close|distance|drive|nearest|closest|what is (near|around)|amenit\w*)\b/.test(q) && !findNamedPlaces(msg, p).found.length) topics = topics.filter(t => t !== 'distance');
             const isFollowUp = /^\s*(and|what about|how about|ok(ay)?|now|then|also|same|at|with)\b/.test(q) || (!topics.length && (newFound || newLand != null));
             // Numbers carry over when the question builds on the last one ("and at 4/acre?"); "what if…" starts a fresh scenario
             const carry = isFollowUp && !(/^\s*(what if|suppose|imagine|say)\b/.test(q) && !/\b(also|too|as well|still)\b/.test(q));
@@ -3378,7 +3394,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
                 if (/\b(thanks|thank you|thx|ty|appreciate|great|perfect|awesome|cool)\b/.test(q)) return `<p>Anytime. Anything else about this parcel?</p>`;
                 const def = answerDefine(q);
                 if (def) return def;
-                return `<p>I'm not sure what you're asking. Here's what I can help with:</p>` + answerHelp();
+                if (/\b(help|what can you)\b/.test(q)) return answerHelp();
+                return `<p>I'm not sure exactly what you're asking, so here's a quick snapshot. Try one of the questions below, or ask "help" for everything I can answer.</p>` + answerSnapshot(p);
             }
             if (found.length || landPrice != null) {
                 if (!topics.some(t => ['price', 'brief', 'breakeven', 'sensitivity'].includes(t))) topics.push('price');
@@ -3404,7 +3421,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
             const out = [scenarioNote(found, base)];
             for (const t of topics) {
                 if (t === 'help') out.push(answerHelp());
-                else if (t === 'distance') out.push(await answerDistance(p, msg, onStatus));
+                else if (t === 'distance') out.push(await answerDistance(p, msg, q, onStatus));
                 else if (t === 'neighbors') out.push(await answerNeighbors(p, onStatus));
                 else if (t === 'shape') out.push(answerShape(p));
                 else if (t === 'taxes') out.push(answerTaxes(p));
@@ -3430,6 +3447,16 @@ svg.leaflet-image-layer.leaflet-interactive path {
             }
             if (selectedParcel !== p) return null;
             return out.filter(Boolean).join('');
+        }
+
+        function answerSnapshot(p) {
+            const a = p.assess;
+            const lines = [
+                `${strong(addressLine(p))}, ${escapeHtml(p.county || '—')} County: ${strong(fmtAcres(p.acres) + ' acres')}, ${p.classCode ? escapeHtml(classLabel(p.classCode)) : 'no property class'}.`,
+                a ? `Owner ${strong(a.owner || '—')}; assessed at ${strong(fmtMoney(a.totalAV))}.` : a === null ? 'No assessor record matched.' : 'Assessor record still loading.',
+                ...(p.lat != null ? [`Downtown Indianapolis is ${milesBetween(p.lat, p.lng, 39.7684, -86.1581).toFixed(0)} mi away.`] : [])
+            ];
+            return section('Snapshot', bullets(lines));
         }
 
         function answerOwner(p) {
@@ -3601,48 +3628,54 @@ svg.leaflet-image-layer.leaflet-interactive path {
         }
 
         // ---- Places, distances and the neighborhood (no API key) ----
-        // Places are found with Esri's public World Geocoder (the same provider as the basemaps); drive distance and
-        // time come from the public OSRM router. If either can't be reached, distances fall back to straight-line
-        // miles from a built-in list of Indiana city centers.
+        // Cities and towns come from a built-in list (every Indiana place in GeoNames plus major nearby cities), and a few
+        // landmarks are built in too, so "how far from Muncie?" works without any outside service. Anything else
+        // (businesses, addresses) is looked up with Esri's public World Geocoder, which also finds nearby amenities.
+        // Drive distance and time come from the public OSRM router, or are estimated when it can't be reached.
         const GEOCODER = 'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates';
         const OSRM = 'https://router.project-osrm.org/route/v1/driving';
         const ROAD_FACTOR = 1.3; // typical road distance ÷ straight-line distance, used only when routing is unreachable
-        // Approximate downtown points for offline fallback (city halls / main downtown intersections)
-        const INDIANA_PLACES = {
-            'indianapolis': [39.7684, -86.1581], 'downtown indianapolis': [39.7684, -86.1581], 'indy': [39.7684, -86.1581],
-            'fort wayne': [41.0793, -85.1394], 'evansville': [37.9716, -87.5711], 'south bend': [41.6764, -86.2520],
-            'carmel': [39.9784, -86.1180], 'fishers': [39.9568, -86.0134], 'bloomington': [39.1653, -86.5264],
-            'hammond': [41.5834, -87.5000], 'gary': [41.5934, -87.3464], 'lafayette': [40.4167, -86.8753],
-            'west lafayette': [40.4259, -86.9081], 'muncie': [40.1934, -85.3864], 'terre haute': [39.4667, -87.4139],
-            'kokomo': [40.4864, -86.1336], 'anderson': [40.1053, -85.6803], 'noblesville': [40.0456, -86.0086],
-            'greenwood': [39.6137, -86.1067], 'elkhart': [41.6820, -85.9767], 'mishawaka': [41.6620, -86.1586],
-            'columbus': [39.2014, -85.9214], 'jeffersonville': [38.2776, -85.7372], 'new albany': [38.2856, -85.8241],
-            'westfield': [40.0428, -86.1275], 'richmond': [39.8289, -84.8902], 'plainfield': [39.7042, -86.3994],
-            'valparaiso': [41.4731, -87.0611], 'avon': [39.7628, -86.3997], 'zionsville': [39.9509, -86.2619],
-            'brownsburg': [39.8434, -86.3978], 'franklin': [39.4806, -86.0550], 'shelbyville': [39.5214, -85.7769],
-            'lebanon': [40.0484, -86.4692], 'greenfield': [39.7851, -85.7694], 'lawrence': [39.8387, -86.0253],
-            'merrillville': [41.4828, -87.3328], 'crown point': [41.4170, -87.3653], 'goshen': [41.5823, -85.8344],
-            'marion': [40.5584, -85.6591], 'logansport': [40.7545, -86.3567], 'vincennes': [38.6773, -87.5286],
-            'louisville': [38.2527, -85.7585], 'chicago': [41.8781, -87.6298], 'cincinnati': [39.1031, -84.5120]
-        };
+        // GeoNames populated places (cities.json package, CC-BY-4.0): every Indiana place (tag = county FIPS) and major nearby cities (tag = state)
+        const PLACE_DATA = 'Aberdeen|41.4389|-87.1114|127;Akron|41.0384|-86.0280|049;Akron|41.0814|-81.5190|OH;Albany|40.3009|-85.2419|035;Albion|41.3956|-85.4244|113;Alexandria|40.2628|-85.6758|095;Anderson|40.1053|-85.6803|095;Andrews|40.8625|-85.6017|069;Angola|41.6348|-84.9994|151;Ann Arbor|42.2776|-83.7409|MI;Arcadia|40.1759|-86.0216|057;Argos|41.2378|-86.2147|099;Attica|40.2942|-87.2489|045;Auburn|41.3670|-85.0589|033;Aurora|39.0570|-84.9013|029;Austin|38.7584|-85.8080|143;Avilla|41.3659|-85.2389|113;Avon|39.7628|-86.3997|063;Bargersville|39.5209|-86.1678|081;Bass Lake|41.2073|-86.6020|149;Batesville|39.3000|-85.2222|137;Battle Ground|40.5084|-86.8417|157;Bedford|38.8612|-86.4872|093;Beech Grove|39.7220|-86.0900|097;Berne|40.6578|-84.9519|001;Bicknell|38.7742|-87.3078|083;Bloomfield|39.0270|-86.9375|055;Bloomington|39.1653|-86.5264|105;Bluffton|40.7387|-85.1716|179;Boonville|38.0492|-87.2742|173;Bourbon|41.2956|-86.1164|099;Bowling Green|36.9903|-86.4436|KY;Brazil|39.5237|-87.1250|021;Bremen|41.4464|-86.1481|099;Bright|39.2184|-84.8561|029;Bristol|41.7214|-85.8175|039;Broad Ripple|39.8667|-86.1416|097;Brooklyn|39.5392|-86.3692|109;Brookston|40.6028|-86.8672|181;Brookville|39.4231|-85.0127|047;Brownsburg|39.8434|-86.3978|063;Brownstown|38.8789|-86.0419|071;Burns Harbor|41.6259|-87.1334|127;Butler|41.4298|-84.8714|033;Cambridge City|39.8126|-85.1716|177;Cannelton|37.9114|-86.7444|123;Carmel|39.9784|-86.1180|057;Cayuga|39.9487|-87.4597|165;Cedar Lake|41.3648|-87.4411|089;Centerville|39.8178|-84.9964|177;Champaign|40.1164|-88.2434|IL;Chandler|38.0417|-87.3681|173;Charlestown|38.4531|-85.6702|019;Chesterfield|40.1125|-85.5969|095;Chesterton|41.6106|-87.0642|127;Chicago|41.8500|-87.6500|IL;Churubusco|41.2306|-85.3194|183;Cicero|40.1239|-86.0133|057;Cincinnati|39.1271|-84.5144|OH;Clarksville|38.2967|-85.7600|019;Clermont|39.8098|-86.3225|097;Cleveland|41.4995|-81.6954|OH;Clinton|39.6570|-87.3981|165;Cloverdale|39.5148|-86.7939|133;Columbia City|41.1573|-85.4883|183;Columbus|39.2014|-85.9214|005;Columbus|39.9612|-82.9988|OH;Connersville|39.6412|-85.1411|041;Converse|40.5775|-85.8733|103;Cordry Sweetwater Lakes|39.3046|-86.1184|013;Corydon|38.2120|-86.1219|061;Country Squire Lakes|39.0348|-85.6986|079;Covington|40.1417|-87.3947|045;Crawfordsville|40.0412|-86.8744|107;Crothersville|38.8006|-85.8416|071;Crown Point|41.4170|-87.3653|089;Culver|41.2189|-86.4231|099;Cumberland|39.7762|-85.9572|097;Daleville|40.1212|-85.5580|035;Dale|38.1689|-86.9900|147;Dale|40.0167|-86.4000|011;Danville|39.7606|-86.5264|063;Danville|40.1245|-87.6300|IL;Darmstadt|38.0992|-87.5789|163;Dayton|39.7589|-84.1916|OH;Dayton|40.3742|-86.7689|157;DeMotte|41.1950|-87.1986|073;Decatur|40.8306|-84.9291|001;Delphi|40.5875|-86.6750|015;Detroit|42.3314|-83.0457|MI;Dillsboro|39.0178|-85.0588|029;Dunkirk|40.3753|-85.2094|075;Dunkirk|40.7564|-86.3936|017;Dunlap|41.6378|-85.9217|039;Dyer|41.4942|-87.5217|089;East Chicago|41.6392|-87.4548|089;Eaton|40.3403|-85.3508|035;Edgewood|40.1034|-85.7341|095;Edinburgh|39.3542|-85.9667|081;Elkhart|41.6820|-85.9767|039;Ellettsville|39.2339|-86.6250|105;Elwood|40.2770|-85.8419|095;English|38.3345|-86.4642|025;Evansville|37.9748|-87.5559|163;Fairfield Heights|39.8286|-86.3822|063;Fairmount|40.4153|-85.6505|053;Fairview Park|39.6803|-87.4175|165;Farmersburg|39.2486|-87.3820|153;Farmland|40.1878|-85.1275|135;Ferdinand|38.2239|-86.8622|037;Fish Lake|41.5667|-86.5520|091;Fishers|39.9556|-86.0139|057;Flora|40.5473|-86.5244|015;Fort Branch|38.2512|-87.5811|051;Fort Wayne|41.1306|-85.1289|003;Fortville|39.9323|-85.8480|059;Fowler|40.6167|-87.3208|007;Frankfort|40.2795|-86.5108|023;Franklin|39.4806|-86.0550|081;Frankton|40.2228|-85.7789|095;Fremont|41.7309|-84.9327|151;French Lick|38.5489|-86.6200|117;Galena|38.3517|-85.9416|043;Galveston|40.5789|-86.1903|017;Garrett|41.3495|-85.1355|033;Gary|41.5934|-87.3464|089;Gas City|40.4873|-85.6130|053;Geneva|39.3917|-85.7200|145;Geneva|40.5920|-84.9572|001;Georgetown|38.2945|-85.9755|043;Georgetown|40.7406|-86.5047|017;Georgetown|41.7295|-86.2283|141;Goodland|40.7634|-87.2936|111;Goshen|41.5823|-85.8344|039;Grabill|41.2109|-84.9669|003;Grand Rapids|42.9634|-85.6681|MI;Granger|41.7534|-86.1108|141;Greencastle|39.6445|-86.8647|133;Greendale|39.1126|-84.8641|029;Greenfield|39.7850|-85.7694|059;Greensburg|39.3373|-85.4836|031;Greentown|40.4781|-85.9667|067;Greenwood|39.6137|-86.1067|081;Griffith|41.5284|-87.4236|089;Grissom Air Force Base|40.6575|-86.1475|103;Gulivoire Park|41.6134|-86.2453|141;Hagerstown|39.9112|-85.1616|177;Hamilton|41.5337|-84.9127|151;Hammond|41.5834|-87.5000|089;Hanover|38.7142|-85.4736|077;Harlan|41.1962|-84.9197|003;Hartford City|40.4511|-85.3700|009;Haubstadt|38.2050|-87.5742|051;Hebron|41.3186|-87.2003|127;Henryville|38.5417|-85.7677|019;Heritage Lake|39.7278|-86.7102|133;Hidden Valley|39.1623|-84.8430|029;Highland|38.0480|-87.5620|163;Highland|41.5536|-87.4520|089;Hobart|41.5323|-87.2550|089;Hope|39.3039|-85.7714|005;Hudson Lake|41.7103|-86.5342|091;Huntertown|41.2284|-85.1725|003;Huntingburg|38.2989|-86.9550|037;Huntington|40.8831|-85.4975|069;Indian Heights|40.4273|-86.1256|067;Indianapolis|39.7684|-86.1580|097;Ingalls|39.9570|-85.8053|095;Jasonville|39.1631|-87.1992|055;Jasper|38.3914|-86.9311|037;Jeffersonville|38.2776|-85.7372|019;Joliet|41.5252|-88.0834|IL;Jonesboro|40.4798|-85.6278|053;Kalamazoo|42.2917|-85.5872|MI;Kendallville|41.4414|-85.2650|113;Kentland|40.7703|-87.4453|111;Kingsford Heights|41.4806|-86.6917|091;Knightstown|39.7956|-85.5264|065;Knox|41.2959|-86.6250|149;Kokomo|40.4864|-86.1336|067;Koontz Lake|41.4181|-86.4858|149;Kouts|41.3167|-87.0259|127;La Porte|41.6077|-86.7139|091;Lafayette|40.4167|-86.8753|157;Lagrange|41.6417|-85.4167|087;Lake Dalecarlia|41.3309|-87.3948|089;Lake Station|41.5750|-87.2389|089;Lakes of the Four Seasons|41.4103|-87.2131|127;Lansing|42.7325|-84.5555|MI;Lapel|40.0684|-85.8483|095;Lawrenceburg|39.0909|-84.8500|029;Lawrence|39.8387|-86.0253|097;Lebanon|40.0484|-86.4692|011;Leo-Cedarville|41.2126|-85.0166|003;Lexington|37.9887|-84.4777|KY;Liberty|39.6356|-84.9311|161;Ligonier|41.4659|-85.5875|113;Linton|39.0348|-87.1659|055;Logansport|40.7545|-86.3567|017;Long Beach|41.7389|-86.8570|091;Loogootee|38.6770|-86.9142|101;Louisville|38.2542|-85.7594|KY;Lowell|41.2914|-87.4206|089;Lynn|40.0498|-84.9397|135;Madison|38.7359|-85.3800|077;Madison|43.0731|-89.4012|WI;Marion|40.5584|-85.6591|053;Markle|40.8246|-85.3388|069;Martinsville|39.4278|-86.4283|109;McCordsville|39.9081|-85.9228|059;Melody Hill|38.0262|-87.5159|163;Memphis|35.1495|-90.0490|TN;Meridian Hills|39.8900|-86.1572|097;Merrillville|41.4828|-87.3328|089;Michigan City|41.7075|-86.8950|091;Middlebury|39.2642|-87.1189|021;Middlebury|41.6753|-85.7061|039;Middletown|40.0573|-85.5372|065;Milan|39.1212|-85.1313|137;Milford|41.4098|-85.8456|085;Milwaukee|43.0389|-87.9065|WI;Mishawaka|41.6620|-86.1586|141;Mitchell|38.7328|-86.4736|093;Monon|40.8678|-86.8789|181;Monroeville|40.9748|-84.8683|003;Monrovia|39.5789|-86.4822|109;Monticello|40.7453|-86.7647|181;Montpelier|40.5539|-85.2775|009;Mooresville|39.6128|-86.3742|109;Morocco|40.9462|-87.4534|111;Morristown|39.6734|-85.6986|145;Mount Vernon|37.9323|-87.8950|129;Mount Vernon|40.6695|-85.8242|169;Mulberry|40.3445|-86.6653|023;Muncie|40.1934|-85.3864|035;Munster|41.5645|-87.5125|089;Naperville|41.7859|-88.1473|IL;Nappanee|41.4428|-86.0014|039;Nashville|36.1659|-86.7844|TN;Nashville|39.2073|-86.2511|013;New Albany|38.2856|-85.8241|043;New Carlisle|41.7003|-86.5095|141;New Castle|39.9289|-85.3702|065;New Chicago|41.5584|-87.2745|089;New Haven|41.0706|-85.0144|003;New Palestine|39.7220|-85.8892|059;New Paris|41.5003|-85.8281|039;New Pekin|38.5051|-86.0169|175;New Whiteland|39.5581|-86.0953|081;Newburgh|37.9445|-87.4053|173;Newport|39.8842|-87.4086|165;Noblesville|40.0456|-86.0086|057;North Judson|41.2150|-86.7759|149;North Liberty|41.5342|-86.4272|141;North Madison|38.7678|-85.3966|077;North Manchester|41.0006|-85.7686|169;North Terre Haute|39.5278|-87.3603|167;North Vernon|39.0062|-85.6236|079;North Webster|41.3256|-85.6978|085;Notre Dame|41.7002|-86.2379|141;Oak Park|38.3056|-85.6963|019;Oakland City|38.3387|-87.3450|051;Odon|38.8428|-86.9914|027;Ogden Dunes|41.6228|-87.1917|127;Oolitic|38.9009|-86.5253|093;Orleans|38.6617|-86.4517|117;Osceola|41.6651|-86.0758|141;Osgood|39.1292|-85.2916|137;Ossian|40.8806|-85.1664|179;Otis|41.5992|-86.9059|091;Otterbein|40.4906|-87.0964|007;Owensboro|37.7742|-87.1133|KY;Owensville|38.2720|-87.6878|051;Oxford|40.5198|-87.2478|007;Paoli|38.5562|-86.4683|117;Parker City|40.1889|-85.2041|135;Pendleton|39.9975|-85.7466|095;Peoria|40.6936|-89.5890|IL;Peru|40.7537|-86.0689|103;Petersburg|38.4920|-87.2786|125;Pierceton|41.2003|-85.7055|085;Pittsboro|39.8639|-86.4669|063;Plainfield|39.7042|-86.3994|063;Plymouth|41.3437|-86.3097|099;Portage|41.5759|-87.1762|127;Porter|41.6156|-87.0742|127;Portland|40.4345|-84.9778|075;Poseyville|38.1700|-87.7831|129;Princes Lakes|39.3537|-86.0981|081;Princeton|38.3553|-87.5675|051;Redkey|40.3489|-85.1500|075;Remington|40.7609|-87.1509|073;Rensselaer|40.9367|-87.1509|073;Richmond|39.8289|-84.8902|177;Rising Sun|38.9495|-84.8538|115;Roanoke|40.9626|-85.3733|069;Rochester|41.0648|-86.2158|049;Rockport|37.8831|-87.0494|147;Rockport|39.8809|-87.2789|121;Rockville|39.7625|-87.2292|121;Rome City|41.4962|-85.3766|113;Roselawn|41.1417|-87.3148|111;Rossville|40.4170|-86.5947|023;Rushville|39.6092|-85.4464|139;Russiaville|40.4175|-86.2714|067;Saint John|41.4500|-87.4700|089;Saint Paul|39.4281|-85.6283|031;Salem|38.6056|-86.1011|175;Santa Claus|38.1200|-86.9142|147;Schererville|41.4789|-87.4548|089;Scottsburg|38.6856|-85.7703|143;Seelyville|39.4920|-87.2672|167;Sellersburg|38.3981|-85.7550|019;Seymour|38.9592|-85.8902|071;Shadeland|40.3736|-86.9489|157;Shelburn|39.1784|-87.3936|153;Shelbyville|39.5214|-85.7769|145;Sheridan|40.1350|-86.2206|057;Shoals|38.6664|-86.7911|101;Shorewood Forest|41.4631|-87.1447|127;Simonton Lake|41.7542|-85.9750|039;Smithville-Sanders|39.0597|-86.5108|105;South Bend|41.6834|-86.2500|141;South Haven|41.5420|-87.1373|127;South Whitley|41.0848|-85.6280|183;Southport|39.6651|-86.1278|097;Speedway|39.8023|-86.2672|097;Spencer|39.2867|-86.7625|119;Springfield|39.8017|-89.6437|IL;St. Louis|38.6273|-90.1979|MO;Sullivan|39.0953|-87.4059|153;Sunman|39.2370|-85.0947|137;Sweetser|40.5720|-85.7691|053;Syracuse|41.4278|-85.7525|085;Tell City|37.9514|-86.7678|123;Terre Haute|39.4667|-87.4139|167;Thorntown|40.1295|-86.6067|011;Tipton|40.2823|-86.0411|159;Toledo|41.6639|-83.5552|OH;Topeka|41.5392|-85.5397|087;Trafalgar|39.4162|-86.1508|081;Trail Creek|41.6984|-86.8592|091;Tri-Lakes|41.2459|-85.4419|183;Union City|40.2020|-84.8091|135;Upland|40.4756|-85.4944|053;Valparaiso|41.4731|-87.0611|127;Veedersburg|40.1131|-87.2625|045;Versailles|39.0720|-85.2519|137;Vevay|38.7478|-85.0672|155;Vincennes|38.6773|-87.5286|083;Wabash|40.7978|-85.8205|169;Wakarusa|41.5362|-86.0208|039;Walkerton|41.4667|-86.4831|141;Walton|40.6609|-86.2419|017;Wanatah|41.4306|-86.8984|091;Warren Park|39.7820|-86.0503|097;Warren|40.6828|-85.4272|069;Warsaw|41.2381|-85.8530|085;Washington|38.6592|-87.1728|027;Waterloo|39.5626|-86.1975|081;Waterloo|41.4320|-85.0200|033;West Lafayette|40.4259|-86.9081|157;West Terre Haute|39.4650|-87.4500|167;Westfield|40.0428|-86.1275|057;Westport|39.1759|-85.5730|031;Westville|41.5414|-86.9006|091;Whiteland|39.5500|-86.0797|081;Whitestown|39.9973|-86.3458|011;Whiting|41.6798|-87.4945|089;Williamsport|40.2884|-87.2939|171;Winamac|41.0514|-86.6031|131;Winchester|40.1720|-84.9814|135;Winfield|41.4053|-87.2753|089;Winona Lake|41.2273|-85.8219|085;Wolcottville|41.5259|-85.3667|113;Woodburn|41.1253|-84.8533|003;Worthington|39.1250|-86.9794|055;Yorktown|40.1737|-85.4941|035;Zionsville|39.9509|-86.2619|011';
+        const STATE_WORDS = { IN: 'indiana|ind', IL: 'illinois|ill|il', OH: 'ohio|oh', KY: 'kentucky|ky', MI: 'michigan|mich|mi', MO: 'missouri|mo', TN: 'tennessee|tenn|tn', WI: 'wisconsin|wis|wi' };
+        const placeKey = s => s.toLowerCase().replace(/\./g, '').replace(/^saint /, 'st ').replace(/\s+/g, ' ').trim();
+        const PLACES = PLACE_DATA.split(';').map(e => {
+            const [name, lat, lng, tag] = e.split('|');
+            const inIndiana = !/^[A-Z]{2}$/.test(tag);
+            return { name, key: placeKey(name), lat: +lat, lng: +lng, state: inIndiana ? 'IN' : tag, county: inIndiana ? tag : null };
+        });
+        const PLACE_KEYS = [...new Set(PLACES.map(pl => pl.key))].sort((a, b) => b.length - a.length);
+        const PLACE_ALIASES = { 'indy': 'indianapolis', 'naptown': 'indianapolis', 'fort wayne': 'fort wayne', 'ft wayne': 'fort wayne', 'st louis': 'st louis', 'saint louis': 'st louis' };
+        // Place names that are also everyday words only count when capitalized in the question
+        const WORDLIKE_PLACES = new Set(['hope', 'liberty', 'dale', 'highland', 'converse', 'bright', 'union', 'speedway', 'chandler', 'mexico', 'lowell', 'avon', 'brook', 'ladoga', 'kent']);
+        const LANDMARKS = [
+            [/\bpurdue( university)?\b/, 'Purdue University', 40.4237, -86.9212],
+            [/\b(indiana university( bloomington)?|iu bloomington|iub)\b/, 'Indiana University Bloomington', 39.1682, -86.5230],
+            [/\bnotre dame\b/, 'University of Notre Dame', 41.7052, -86.2353],
+            [/\bball state( university)?\b/, 'Ball State University', 40.2049, -85.4095],
+            [/\b(indianapolis (international )?airport|indy airport|ind airport)\b/, 'Indianapolis International Airport', 39.7173, -86.2944],
+            [/\b(indianapolis motor speedway|the speedway|indy 500)\b/, 'Indianapolis Motor Speedway', 39.7950, -86.2347],
+            [/\blucas oil( stadium)?\b/, 'Lucas Oil Stadium', 39.7601, -86.1639],
+            [/\b(downtown (indy|indianapolis)|monument circle)\b/, 'Downtown Indianapolis (Monument Circle)', 39.7684, -86.1581]
+        ];
         const PLACE_CATEGORIES = [
-            [/hospital|er\b|emergency|medical center/, 'Hospital', 'hospital'],
+            [/hospital|emergency room|\ber\b|medical center/, 'Hospital', 'hospital'],
             [/elementary|middle school|high school|schools?\b/, 'School', 'school'],
-            [/grocery|supermarket|groceries|food store|kroger|meijer|walmart/, 'Grocery', 'grocery store'],
-            [/airport/, 'Airport', 'airport'],
-            [/interstate|highway|freeway|exit|on.?ramp|i-\d+/, 'Highway Exit', 'highway exit'],
-            [/university|college|campus/, 'College', 'college or university'],
-            [/parks?\b|playground/, 'Park', 'park'],
-            [/gas station|gas\b|fuel/, 'Gas Station', 'gas station'],
-            [/pharmacy|drug ?store|cvs|walgreens/, 'Pharmacy', 'pharmacy'],
-            [/coffee|starbucks/, 'Coffee Shop', 'coffee shop'],
-            [/restaurant|food|dining|eat/, 'Restaurant', 'restaurant'],
-            [/bank/, 'Bank', 'bank'],
-            [/library/, 'Library', 'library'],
-            [/fire station|fire dept|fire department/, 'Fire Station', 'fire station'],
+            [/grocery|groceries|supermarket|food store|kroger|meijer|walmart|aldi/, 'Grocery', 'grocery store'],
+            [/airports?\b/, 'Airport', 'airport'],
+            [/interstate|highway|freeway|exit|on.?ramp|\bi-?\d+\b/, 'Highway Exit', 'highway exit'],
+            [/universit|college|campus/, 'College', 'college or university'],
+            [/parks?\b|playground|trail/, 'Park', 'park'],
+            [/gas station|\bgas\b|fuel/, 'Gas Station', 'gas station'],
+            [/pharmac|drug ?store|cvs|walgreens/, 'Pharmacy', 'pharmacy'],
+            [/coffee|starbucks|cafe/, 'Coffee Shop', 'coffee shop'],
+            [/restaurant|dining|places to eat|fast food/, 'Restaurant', 'restaurant'],
+            [/\bbanks?\b/, 'Bank', 'bank'],
+            [/librar/, 'Library', 'library'],
+            [/fire station|fire dep/, 'Fire Station', 'fire station'],
             [/police/, 'Police Station', 'police station'],
             [/church/, 'Church', 'church'],
-            [/shopping|mall|retail/, 'Shopping Center', 'shopping center']
+            [/shopping|\bmall\b|retail|stores\b/, 'Shopping Center', 'shopping center']
         ];
         const AMENITY_SET = ['Grocery', 'School', 'Hospital', 'Highway Exit', 'Park'];
 
@@ -3654,18 +3687,55 @@ svg.leaflet-image-layer.leaflet-interactive path {
                 return await res.json();
             } finally { clearTimeout(t); }
         }
-        // Find a named place, biased toward the parcel
+        const escapeRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+        // Built-in places named in the question: landmarks first, then cities and towns (longest names first).
+        // "Marion County" or "Indianapolis Rd" aren't the city; "Columbus, Ohio" picks the Ohio one; a name that
+        // exists twice in Indiana (two Georgetowns) picks the one nearer the parcel and says so.
+        function findNamedPlaces(msg, p) {
+            let text = ' ' + normalizeQuestion(msg).replace(/[’']/g, '').replace(/\./g, '').replace(/[^a-z0-9\s,&-]/g, ' ').replace(/\s+/g, ' ') + ' ';
+            const found = [];
+            const blank = (m) => { text = text.slice(0, m.index) + ' '.repeat(m[0].length) + text.slice(m.index + m[0].length); };
+            LANDMARKS.forEach(([re, name, lat, lng]) => { const m = text.match(re); if (m) { found.push({ name, lat, lng, kind: 'landmark', pos: m.index }); blank(m); } });
+            Object.entries(PLACE_ALIASES).forEach(([alias, key]) => { text = text.replace(new RegExp(`\\b${escapeRe(alias)}\\b`, 'g'), key); });
+            for (const key of PLACE_KEYS) {
+                const re = new RegExp(`\\b${escapeRe(key)}\\b(?!\\s+(county|co|township|twp|road|rd|street|st|avenue|ave|pike|drive|dr|lane|ln|blvd|way|highway|hwy|creek|river|lake|park|school|high|university|college|hospital|mall)\\b)(\\s*,?\\s*(${Object.values(STATE_WORDS).join('|')})\\b)?`);
+                const m = text.match(re);
+                if (!m) continue;
+                if (WORDLIKE_PLACES.has(key) && !new RegExp(`\\b${escapeRe(PLACES.find(pl => pl.key === key).name)}\\b`).test(msg)) continue;
+                const stateWord = m[3];
+                const state = stateWord ? Object.entries(STATE_WORDS).find(([, w]) => new RegExp(`^(${w})$`).test(stateWord))[0] : null;
+                let cands = PLACES.filter(pl => pl.key === key);
+                cands = state ? cands.filter(pl => pl.state === state) : (cands.some(pl => pl.state === 'IN') ? cands.filter(pl => pl.state === 'IN') : cands);
+                if (!cands.length) continue;
+                cands.sort((a, b) => milesBetween(p.lat, p.lng, a.lat, a.lng) - milesBetween(p.lat, p.lng, b.lat, b.lng));
+                const pl = cands[0];
+                const countyName = pl.county ? (COUNTIES.find(c => c.fips === '18' + pl.county) || {}).name : null;
+                const label = pl.state !== 'IN' ? `${pl.name}, ${pl.state}` : cands.length > 1 && countyName ? `${pl.name}, ${countyName} County` : pl.name;
+                found.push({ name: label, lat: pl.lat, lng: pl.lng, kind: 'city', ambiguous: cands.length > 1 ? cands.length : 0, pos: m.index });
+                blank(m);
+            }
+            return { found: found.sort((a, b) => a.pos - b.pos), rest: text }; // in the order they were asked about
+        }
+
+        // Places the built-in list didn't cover (a business, an address): the phrase after "from"/"to"/"near"
+        function extractPlacePhrases(text) {
+            const m = text.match(/\b(?:from|to|near|close to|distance to|distance from)\s+(.+?)\s*$/)
+                || text.match(/\bhow (?:far|close)(?: away)? is\s+(?!it\b|this parcel\b)(.+?)\s*$/);
+            if (!m) return [];
+            return m[1].split(/\s*(?:,|\band\b|&|\bor\b)\s*/).map(s => s.replace(/^(the|a|an)\s+/, '').replace(/\s+(is|is it|from here|from it|from this parcel|away|in miles|by car)$/, '').trim())
+                .filter(s => s.length > 2 && !/^(it|here|there|this|this parcel|me|us|town|the city|downtown)$/.test(s) && !/^\s*$/.test(s)).slice(0, 4);
+        }
+
         async function geocodePlace(text, p) {
-            const key = text.toLowerCase().replace(/^(the|downtown)\s+/, m => m === 'downtown ' ? 'downtown ' : '').replace(/,?\s*(indiana|in)$/, '').trim();
             try {
-                const qs = new URLSearchParams({ SingleLine: /\b(indiana|IN|il|oh|ky|mi|illinois|ohio|kentucky|michigan)\b/i.test(text) ? text : `${text}, Indiana`,
+                const qs = new URLSearchParams({ SingleLine: /\b(indiana|illinois|ohio|kentucky|michigan|in|il|oh|ky|mi)\b/i.test(text) ? text : `${text}, Indiana`,
                     location: `${p.lng},${p.lat}`, maxLocations: '1', outFields: 'PlaceName,Place_addr,Type', sourceCountry: 'USA', f: 'json' });
                 const j = await fetchJsonTimeout(`${GEOCODER}?${qs}`);
                 const c = (j.candidates || [])[0];
-                if (c && c.score >= 80) return { name: c.attributes.PlaceName || c.address, address: c.attributes.Place_addr || c.address, lat: c.location.y, lng: c.location.x, source: 'esri' };
-            } catch { /* fall through to the built-in list */ }
-            const hit = INDIANA_PLACES[key] || INDIANA_PLACES[key.replace(/^downtown /, '')];
-            return hit ? { name: text.replace(/\b\w/g, ch => ch.toUpperCase()), address: 'city center (approximate)', lat: hit[0], lng: hit[1], source: 'builtin' } : null;
+                if (c && c.score >= 80) return { name: c.attributes.PlaceName || c.address, address: c.attributes.Place_addr || c.address, lat: c.location.y, lng: c.location.x, kind: 'esri' };
+                return { notFound: true };
+            } catch { return { unreachable: true }; }
         }
         async function nearestByCategory(category, p, max = 5) {
             const qs = new URLSearchParams({ category, location: `${p.lng},${p.lat}`, maxLocations: String(max), outFields: 'PlaceName,Place_addr,Type', sourceCountry: 'USA', f: 'json' });
@@ -3677,8 +3747,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
             try {
                 const j = await fetchJsonTimeout(`${OSRM}/${p.lng},${p.lat};${place.lng},${place.lat}?overview=false`, 10000);
                 const r = j.routes && j.routes[0];
-                if (r) return { miles: r.distance / 1609.344, minutes: r.duration / 60, source: 'osrm' };
-            } catch { /* estimate below */ }
+                if (r) return { miles: r.distance / 1609.344, minutes: r.duration / 60 };
+            } catch { /* estimate instead */ }
             return null;
         }
         function compass(fromLat, fromLng, toLat, toLng) {
@@ -3687,55 +3757,62 @@ svg.leaflet-image-layer.leaflet-interactive path {
             const deg = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
             return ['north', 'northeast', 'east', 'southeast', 'south', 'southwest', 'west', 'northwest'][Math.round(deg / 45) % 8];
         }
-        // Pull place names out of a distance question: "how far from Purdue and downtown Indy?"
-        function extractPlaces(msg) {
-            const m = msg.match(/(?:how far|distance|how many miles|miles|how long(?: of a)?(?: drive)?|drive time|driving time|drive|commute|how close|minutes|close)\b.*?\b(?:from|to|of)\s+(.+?)\s*[?.!]*$/i);
-            if (!m) return [];
-            return m[1].split(/\s*(?:,|\band\b|&|\bor\b)\s*/i).map(s => s.replace(/^(the|a|an)\s+/i, '').replace(/\s+(is it|from here|from it|from the (site|parcel|property))$/i, '').trim())
-                .filter(s => s.length > 1 && !/^(it|here|there|this|the (site|parcel|property)|me)$/i.test(s)).slice(0, 4);
-        }
+        const fmtMinutes = m => m >= 90 ? `${Math.floor(m / 60)} hr ${Math.round(m % 60)} min` : `${Math.max(1, Math.round(m))} min`;
 
-        async function answerDistance(p, msg, onStatus) {
+        async function answerDistance(p, msg, nq, onStatus) {
             if (p.lat == null) return section('Distance', '<p>This parcel has no location on record.</p>');
-            const lower = msg.toLowerCase();
+            const { found, rest } = findNamedPlaces(msg, p);
+            // Categories only when asked for the nearest/any of something, or when no specific place was named
+            // "Nearest hospital", "any schools near it", "is there a grocery store close by" ask about a type of place;
+            // "how far from Kroger on Main Street" names a specific one, which is looked up as itself
+            const askingCategory = /\b(nearest|closest|any|is there|are there|where is the)\b/.test(nq);
+            let phrases = extractPlacePhrases(rest);
+            if (askingCategory) phrases = phrases.filter(ph => !PLACE_CATEGORIES.some(([re]) => re.test(ph)));
+            const cats = askingCategory || (!found.length && !phrases.length) ? PLACE_CATEGORIES.filter(([re]) => re.test(rest)) : [];
+            const wantsOverview = !found.length && !phrases.length && !cats.length;
             const out = [];
-            // "nearest hospital", "closest interstate", "what's around it"
-            const wantsAmenities = /\b(what'?s (around|nearby|near it|close)|amenities|surroundings|what is (around|nearby)|nearby services)\b/.test(lower);
-            const nearestMatch = lower.match(/\b(?:nearest|closest)\s+(.+?)\s*[?.!]*$/);
-            const cats = [];
-            if (wantsAmenities) AMENITY_SET.forEach(c => cats.push(PLACE_CATEGORIES.find(x => x[1] === c)));
-            else if (nearestMatch) { const hit = PLACE_CATEGORIES.find(([re]) => re.test(nearestMatch[1])); if (hit) cats.push(hit); }
-            if (cats.length) {
+
+            const targets = [...found];
+            if (phrases.length) {
+                onStatus(`Looking up ${phrases.join(', ')}…`);
+                for (const ph of phrases) {
+                    const g = await geocodePlace(ph, p);
+                    if (g.lat != null) targets.push(g);
+                    else out.push(section('Distance', `<p>${g.unreachable ? `I couldn't reach the place search for ${strong(ph)}. Cities and towns work offline; for a business or address, try again in a moment.` : `I couldn't find ${strong(ph)}. Try adding the city, e.g. "${escapeHtml(ph)}, Indianapolis".`}</p>`));
+                }
+            }
+            if (targets.length) {
+                onStatus('Measuring distances and drive times…');
+                let routed = false;
+                const rows = await Promise.all(targets.map(async t => {
+                    const straight = milesBetween(p.lat, p.lng, t.lat, t.lng);
+                    const drive = straight > 0.2 ? await driveRoute(p, t) : null;
+                    if (drive) routed = true;
+                    const driveText = drive ? `${strong(drive.miles.toFixed(1) + ' mi')} by road, about ${strong(fmtMinutes(drive.minutes))} driving`
+                        : `roughly ${(straight * ROAD_FACTOR).toFixed(0)} mi by road (estimated)`;
+                    const what = t.kind === 'city' ? ' (city center)' : t.kind === 'esri' && t.address ? ` (${escapeHtml(t.address)})` : '';
+                    return `${strong(t.name)}${what}: ${strong(straight.toFixed(1) + ' mi')} straight-line, ${driveText}. The parcel is ${compass(t.lat, t.lng, p.lat, p.lng)} of it.${t.ambiguous ? ` <span class="text-slate-500">(There are ${t.ambiguous} places by that name in Indiana; this is the nearer one.)</span>` : ''}`;
+                }));
+                out.unshift(section('Distance', bullets(rows) + `<p class="text-slate-500 text-[10px]">From the parcel's center. ${routed ? 'Drive times from the public OSRM router assume free-flowing traffic; rush hour runs longer.' : 'Routing couldn\'t be reached, so road miles are estimated at 1.3× the straight line.'}</p>`));
+            }
+
+            if (cats.length || wantsOverview) {
+                const list = wantsOverview ? AMENITY_SET.map(c => PLACE_CATEGORIES.find(x => x[1] === c)) : cats.slice(0, 5);
                 onStatus('Looking up nearby places…');
-                const rows = await Promise.all(cats.map(async ([, cat, label]) => {
+                const rows = await Promise.all(list.map(async ([, cat, label]) => {
                     try {
-                        const list = await nearestByCategory(cat, p);
-                        const n = list[0];
-                        return n ? `Nearest ${escapeHtml(label)}: ${strong(n.name)}${n.address ? ` (${escapeHtml(n.address)})` : ''}, ${strong(n.miles.toFixed(1) + ' mi')} ${compass(p.lat, p.lng, n.lat, n.lng)} in a straight line.` : `No ${escapeHtml(label)} found nearby.`;
+                        const n = (await nearestByCategory(cat, p))[0];
+                        return n ? `Nearest ${escapeHtml(label)}: ${strong(n.name)}${n.address ? ` (${escapeHtml(n.address)})` : ''}, ${strong(n.miles.toFixed(1) + ' mi')} ${compass(p.lat, p.lng, n.lat, n.lng)}.` : `No ${escapeHtml(label)} found nearby.`;
                     } catch { return null; }
                 }));
                 const ok = rows.filter(Boolean);
-                out.push(section(wantsAmenities ? "What's nearby" : 'Nearest', ok.length ? bullets(ok) + `<p class="text-slate-500 text-[10px]">Places from Esri's World Geocoder; distances are straight-line from the parcel's center. Ask "how far is it from [place]?" for drive time.</p>`
-                    : `<p>I couldn't reach the place search (geocode.arcgis.com) from this page, so I can't look up nearby places right now. Named Indiana cities still work, e.g. "how far from Carmel?"</p>`));
+                // The closest towns always work, even if the amenity search can't be reached
+                const towns = PLACES.filter(pl => pl.state === 'IN').map(pl => ({ ...pl, miles: milesBetween(p.lat, p.lng, pl.lat, pl.lng) })).sort((a, b) => a.miles - b.miles).slice(0, 3);
+                const townLine = `Closest towns: ${towns.map(t => `${escapeHtml(t.name)} ${t.miles.toFixed(1)} mi ${compass(p.lat, p.lng, t.lat, t.lng)}`).join(', ')}. Downtown Indianapolis is ${milesBetween(p.lat, p.lng, 39.7684, -86.1581).toFixed(0)} mi away.`;
+                out.push(section(wantsOverview ? "What's near this parcel" : 'Nearest', bullets([...ok, ...(wantsOverview || !ok.length ? [townLine] : [])])
+                    + (ok.length ? `<p class="text-slate-500 text-[10px]">Places from Esri's World Geocoder; straight-line miles from the parcel's center. Ask "how far is it from [place]?" for drive time.</p>`
+                        : `<p class="text-slate-500 text-[10px]">The place search (geocode.arcgis.com) couldn't be reached, so only towns are shown.</p>`)));
             }
-            const names = extractPlaces(msg).filter(n => !(nearestMatch && n.toLowerCase() === nearestMatch[1]));
-            if (names.length) {
-                onStatus(`Finding ${names.join(', ')}…`);
-                let routed = false;
-                const rows = await Promise.all(names.map(async name => {
-                    const place = await geocodePlace(name, p);
-                    if (!place) return `I couldn't find ${strong(name)}. Try adding a city, e.g. "${escapeHtml(name)}, Indianapolis".`;
-                    const straight = milesBetween(p.lat, p.lng, place.lat, place.lng);
-                    const drive = straight > 0.2 ? await driveRoute(p, place) : null;
-                    if (drive) routed = true;
-                    const where = `the parcel is ${compass(place.lat, place.lng, p.lat, p.lng)} of it`;
-                    const driveText = drive ? `about ${strong(drive.miles.toFixed(1) + ' mi')} by road, ${strong(Math.max(1, Math.round(drive.minutes)) + ' min')} drive in light traffic`
-                        : `roughly ${(straight * ROAD_FACTOR).toFixed(1)} mi by road (estimated; routing unavailable)`;
-                    return `${strong(place.name)}${place.address && place.source === 'esri' ? ` (${escapeHtml(place.address)})` : place.source === 'builtin' ? ' (city center, approximate)' : ''}: ${strong(straight.toFixed(1) + ' mi')} straight-line, ${driveText}; ${where}.`;
-                }));
-                out.push(section('Distance', bullets(rows) + `<p class="text-slate-500 text-[10px]">Straight-line from the parcel's center. ${routed ? 'Drive figures from the public OSRM router assume free-flowing traffic; rush hour runs longer.' : 'Routing couldn\'t be reached, so road miles are estimated at 1.3× the straight line.'}</p>`));
-            }
-            if (!out.length) out.push(section('Distance', `<p>Tell me a place, e.g. "How far is it from Purdue?", "Drive time to downtown Indianapolis", "Nearest hospital", or "What's around it?"</p>`));
             return out.join('');
         }
 
